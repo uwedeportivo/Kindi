@@ -15,12 +15,16 @@ import (
 )
 
 type Envelope struct {
-        SenderEmail []byte
-        SenderKey *rsa.PrivateKey
-        RecipientKey *rsa.PublicKey
+        senderEmail []byte
+        senderKey *rsa.PrivateKey
+        recipientKey *rsa.PublicKey
 }
 
 type KeychainFunc func(email []byte) (*rsa.PublicKey, os.Error)
+
+func NewEnvelope(email string, sender *rsa.PrivateKey, recipient *rsa.PublicKey) *Envelope {
+        return &Envelope{senderEmail: []byte(email), senderKey: sender, recipientKey: recipient}
+}
 
 func newCipherStream(symmetricKey []byte) (cipher.Stream, os.Error) {
         c, err := aes.NewCipher(symmetricKey)
@@ -68,11 +72,11 @@ func readLengthEncoded(r io.Reader) (data []byte, err os.Error) {
         return data, nil
 }
 
-func (envelope *Envelope) NewHeader(symmetricKey []byte) (header []byte, err os.Error) {
+func (envelope *Envelope) newHeader(symmetricKey []byte) (header []byte, err os.Error) {
         result := bytes.NewBuffer(make([]byte, 0, 1024))
 
         hash := sha1.New()
-        encryptedSymmetricKey, err := rsa.EncryptOAEP(hash, rand.Reader, envelope.RecipientKey, symmetricKey, nil)
+        encryptedSymmetricKey, err := rsa.EncryptOAEP(hash, rand.Reader, envelope.recipientKey, symmetricKey, nil)
         if err != nil {
                 return nil, err
         }
@@ -84,15 +88,15 @@ func (envelope *Envelope) NewHeader(symmetricKey []byte) (header []byte, err os.
 
         buf := bytes.NewBuffer(make([]byte, 0, 1024))
 
-        err = writeLengthEncoded(buf, envelope.SenderEmail)
+        err = writeLengthEncoded(buf, envelope.senderEmail)
         if err != nil {
                 return nil, err
         }
 
         hash = sha1.New()
-        hash.Write(envelope.SenderEmail)
+        hash.Write(envelope.senderEmail)
         sum := hash.Sum()
-        sig, err := rsa.SignPKCS1v15(rand.Reader, envelope.SenderKey, crypto.SHA1, sum)
+        sig, err := rsa.SignPKCS1v15(rand.Reader, envelope.senderKey, crypto.SHA1, sum)
         if err != nil {
                 return nil, err
         }
@@ -113,7 +117,7 @@ func (envelope *Envelope) NewHeader(symmetricKey []byte) (header []byte, err os.
         return result.Bytes(), nil
 }
 
-func DecryptHeader(header []byte, priv *rsa.PrivateKey, keychain KeychainFunc) ([]byte, os.Error) {
+func decryptHeader(header []byte, priv *rsa.PrivateKey, keychain KeychainFunc) ([]byte, os.Error) {
         buf := bytes.NewBuffer(header)
 
         encryptedSymmetricKey, err := readLengthEncoded(buf)
@@ -160,8 +164,11 @@ func DecryptHeader(header []byte, priv *rsa.PrivateKey, keychain KeychainFunc) (
         return decrypted, nil
 }
 
-func (envelope *Envelope) Encrypt(w io.Writer, r io.Reader, symmetricKey []byte) os.Error {
-        header, err := envelope.NewHeader(symmetricKey)
+func (envelope *Envelope) Encrypt(w io.Writer, r io.Reader) os.Error {
+        symmetricKey := make([]byte, 32)
+        rand.Read(symmetricKey)
+
+        header, err := envelope.newHeader(symmetricKey)
         if err != nil {
                 return err
         }
@@ -187,7 +194,7 @@ func Decrypt(w io.Writer, r io.Reader, priv *rsa.PrivateKey, keychain KeychainFu
                 return err
         }
 
-        symmetricKey, err := DecryptHeader(header, priv, keychain)
+        symmetricKey, err := decryptHeader(header, priv, keychain)
         if err != nil {
                 return err
         }

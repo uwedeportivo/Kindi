@@ -20,9 +20,9 @@ func newEnvelope(t *testing.T) (*Envelope, *rsa.PublicKey, *rsa.PrivateKey)  {
 	}
 
         return &Envelope{
-        SenderEmail:[]byte("foo@gmail.com"),
-        SenderKey:sender,
-        RecipientKey:&recipient.PublicKey,
+        senderEmail:[]byte("foo@gmail.com"),
+        senderKey:sender,
+        recipientKey:&recipient.PublicKey,
         }, &sender.PublicKey, recipient
 }
 
@@ -32,12 +32,12 @@ func TestNewHeader(t *testing.T) {
         symmetricKey := make([]byte, 32)
         rand.Read(symmetricKey)
 
-        header, err := envelope.NewHeader(symmetricKey)
+        header, err := envelope.newHeader(symmetricKey)
         if err != nil {
 		t.Fatalf("failed new header %v", err)
 	}
         
-        decryptedKey, err := DecryptHeader(header, recipient, func(email []byte) (*rsa.PublicKey, os.Error) {
+        decryptedKey, err := decryptHeader(header, recipient, func(email []byte) (*rsa.PublicKey, os.Error) {
 		return sender, nil
 	})
         if err != nil {
@@ -61,10 +61,7 @@ func TestEncrypt(t *testing.T) {
 
         envelope, sender, recipient := newEnvelope(t)
 
-        symmetricKey := make([]byte, 32)
-        rand.Read(symmetricKey)
-
-        err := envelope.Encrypt(outbuffer, inbuffer, symmetricKey)
+        err := envelope.Encrypt(outbuffer, inbuffer)
         if err != nil {
 		t.Fatalf("failed to encrypt %v", err)
 	}
