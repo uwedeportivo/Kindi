@@ -3,9 +3,13 @@ package main
 import (
         "crypto/rsa"
         "flag"
+	"fmt"
+	"io"
         "kindi"
         "log"
         "os"
+
+	"github.com/mrjones/oauth"
 )
 
 func main() {
@@ -122,5 +126,39 @@ func doDecrypt() {
 }
 
 func doLogin() {
+	provider := oauth.ServiceProvider {
+	RequestTokenUrl:   "https://al-kindi.appspot.com/_ah/OAuthGetRequestToken",
+	AccessTokenUrl: "https://al-kindi.appspot.com/_ah/OAuthGetAccessToken",
+	AuthorizeTokenUrl:    "https://al-kindi.appspot.com/_ah/OAuthAuthorizeToken",
+	}
+
+	c := oauth.NewConsumer("845249837160.apps.googleusercontent.com", "JXj77-0-k5uqDo50JEuzB5jD", provider)
+
+	c.AdditionalParams = map[string]string{"client_id": "845249837160.apps.googleusercontent.com"}
+		
+	utoken, url, err := c.GetRequestTokenAndUrl("oob")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(url)
+	fmt.Printf("Grant access, and then enter the verification code here: ")
+	
+	verificationCode := ""
+	fmt.Scanln(&verificationCode)
+	
+	atoken, err := c.AuthorizeToken(utoken, verificationCode)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	r, err := c.Get("https://al-kindi.appspot.com/_je/myDoc?cond=name.eq.Foo", nil, atoken)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer r.Body.Close()
+	// Write the response to standard output.
+	io.Copy(os.Stdout, r.Body)
+	fmt.Println()
 }
 
