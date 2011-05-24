@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
         "crypto/rsa"
         "flag"
 	"fmt"
@@ -126,33 +127,65 @@ func doDecrypt() {
 }
 
 func doLogin() {
+	token := flag.String("token", "", "access token")
+	secret := flag.String("secret", "", "access secret")
+        os.Args = flag.Args()
+        flag.Parse()
+
 	provider := oauth.ServiceProvider {
-	RequestTokenUrl:   "https://al-kindi.appspot.com/_ah/OAuthGetRequestToken",
-	AccessTokenUrl: "https://al-kindi.appspot.com/_ah/OAuthGetAccessToken",
-	AuthorizeTokenUrl:    "https://al-kindi.appspot.com/_ah/OAuthAuthorizeToken",
+	RequestTokenUrl:   "https://uwe-oauth.appspot.com/_ah/OAuthGetRequestToken",
+	AccessTokenUrl: "https://uwe-oauth.appspot.com/_ah/OAuthGetAccessToken",
+	AuthorizeTokenUrl:    "https://uwe-oauth.appspot.com/_ah/OAuthAuthorizeToken",
 	}
 
-	c := oauth.NewConsumer("845249837160.apps.googleusercontent.com", "JXj77-0-k5uqDo50JEuzB5jD", provider)
+	c := oauth.NewConsumer("845249837160.apps.googleusercontent.com", "2a6SruHha24RD6W-JdtC9oMu", provider)
 
 	c.AdditionalParams = map[string]string{"client_id": "845249837160.apps.googleusercontent.com"}
+
+	var atoken *oauth.AccessToken
+
+	if len(*token) == 0 || len(*secret) == 0 {	
+		utoken, url, err := c.GetRequestTokenAndUrl("oob")
+		if err != nil {
+			log.Fatal(err)
+		}
 		
-	utoken, url, err := c.GetRequestTokenAndUrl("oob")
+		fmt.Println(url)
+		fmt.Printf("Grant access, and then enter the verification code here: ")
+		
+		verificationCode := ""
+		fmt.Scanln(&verificationCode)
+	
+		atoken, err = c.AuthorizeToken(utoken, verificationCode)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("access token %#v\n", *atoken)
+	} else {
+		atoken = &oauth.AccessToken{Token:*token, Secret:*secret}
+	}
+
+	r, err := c.Get("https://uwe-oauth.appspot.com/whoami", nil, atoken)
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer r.Body.Close()
+	// Write the response to standard output.
+	io.Copy(os.Stdout, r.Body)
+	fmt.Println()
 
-	fmt.Println(url)
-	fmt.Printf("Grant access, and then enter the verification code here: ")
-	
-	verificationCode := ""
-	fmt.Scanln(&verificationCode)
-	
-	atoken, err := c.AuthorizeToken(utoken, verificationCode)
-	if err != nil {
-		log.Fatal(err)
-	}
+	pemIn, err := os.Open("uwecert.pem")
+        if err != nil {
+                log.Fatal(err)
+        }
 
-	r, err := c.Get("https://al-kindi.appspot.com/_je/myDoc?cond=name.eq.Foo", nil, atoken)
+        buf := bytes.NewBuffer(make([]byte, 0, 1024))
+        _, err = buf.ReadFrom(pemIn)
+        if err != nil {
+                log.Fatal(err)
+        }
+
+	r, err = c.Post("https://uwe-oauth.appspot.com/whoami", buf.String(), "application/x-pem-file", nil, atoken)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -161,4 +194,3 @@ func doLogin() {
 	io.Copy(os.Stdout, r.Body)
 	fmt.Println()
 }
-
