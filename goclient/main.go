@@ -13,6 +13,9 @@ import (
 	"github.com/mrjones/oauth"
 )
 
+const baseUrl = "https://uwe-oauth.appspot.com"
+//const baseUrl = "http://localhost:8080"
+
 func main() {
         flag.Parse()
         
@@ -133,9 +136,9 @@ func doLogin() {
         flag.Parse()
 
 	provider := oauth.ServiceProvider {
-	RequestTokenUrl:   "https://uwe-oauth.appspot.com/_ah/OAuthGetRequestToken",
-	AccessTokenUrl: "https://uwe-oauth.appspot.com/_ah/OAuthGetAccessToken",
-	AuthorizeTokenUrl:    "https://uwe-oauth.appspot.com/_ah/OAuthAuthorizeToken",
+	RequestTokenUrl:   baseUrl + "/_ah/OAuthGetRequestToken",
+	AccessTokenUrl: baseUrl + "/_ah/OAuthGetAccessToken",
+	AuthorizeTokenUrl:    baseUrl + "/_ah/OAuthAuthorizeToken",
 	}
 
 	c := oauth.NewConsumer("845249837160.apps.googleusercontent.com", "2a6SruHha24RD6W-JdtC9oMu", provider)
@@ -165,7 +168,7 @@ func doLogin() {
 		atoken = &oauth.AccessToken{Token:*token, Secret:*secret}
 	}
 
-	r, err := c.Get("https://uwe-oauth.appspot.com/whoami", nil, atoken)
+	r, err := c.Get(baseUrl + "/cert", nil, atoken)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -185,7 +188,16 @@ func doLogin() {
                 log.Fatal(err)
         }
 
-	r, err = c.Post("https://uwe-oauth.appspot.com/whoami", buf.String(), "application/x-pem-file", nil, atoken)
+	r, err = c.Post(baseUrl + "/cert", buf.String(), "application/x-pem-file", nil, atoken)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer r.Body.Close()
+	// Write the response to standard output.
+	io.Copy(os.Stdout, r.Body)
+	fmt.Println()
+
+	r, err = c.Get(baseUrl + "/cert", nil, atoken)
 	if err != nil {
 		log.Fatal(err)
 	}
