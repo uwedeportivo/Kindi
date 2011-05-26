@@ -8,7 +8,7 @@ import (
         "testing"
 )
 
-func newEnvelope(t *testing.T) (*Envelope, *rsa.PublicKey, *rsa.PrivateKey)  {
+func newTestEnvelope(t *testing.T) (*envelope, *rsa.PublicKey, *rsa.PrivateKey)  {
         size := 1024
         sender, err := rsa.GenerateKey(rand.Reader, size)
         if err != nil {
@@ -19,7 +19,7 @@ func newEnvelope(t *testing.T) (*Envelope, *rsa.PublicKey, *rsa.PrivateKey)  {
 		t.Fatalf("failed to generate recipient key")
 	}
 
-        return &Envelope{
+        return &envelope{
         senderEmail:[]byte("foo@gmail.com"),
         senderKey:sender,
         recipientKey:&recipient.PublicKey,
@@ -27,25 +27,29 @@ func newEnvelope(t *testing.T) (*Envelope, *rsa.PublicKey, *rsa.PrivateKey)  {
 }
 
 func TestNewHeader(t *testing.T) {
-        envelope, sender, recipient := newEnvelope(t)
+        envelope, sender, recipient := newTestEnvelope(t)
 
         symmetricKey := make([]byte, 32)
         rand.Read(symmetricKey)
 
-        header, err := envelope.newHeader(symmetricKey)
+	nameBytes := []byte("foofile.dmg")
+        header, err := envelope.newHeader(symmetricKey, nameBytes)
         if err != nil {
 		t.Fatalf("failed new header %v", err)
 	}
         
-        decryptedKey, err := decryptHeader(header, recipient, func(email []byte) (*rsa.PublicKey, os.Error) {
+        decryptedKey, name, err := decryptHeader(header, recipient, func(email []byte) (*rsa.PublicKey, os.Error) {
 		return sender, nil
 	})
         if err != nil {
 		t.Fatalf("failed decrypt header %v", err)
 	}
-        if ! bytes.Equal(symmetricKey, decryptedKey) {
+        if !bytes.Equal(symmetricKey, decryptedKey) {
                 t.Fatalf("expected symmetric key and decrypted symmetric key not equal")
         }
+	if !bytes.Equal(name, nameBytes) {
+		t.Fatalf("expected declared name and decrypted name not equal")
+	}
 }
 
 func TestEncrypt(t *testing.T) {
@@ -59,16 +63,16 @@ func TestEncrypt(t *testing.T) {
         inbuffer := bytes.NewBuffer(payload)
         outbuffer := bytes.NewBuffer(make([]byte, 0, 1024))
 
-        envelope, sender, recipient := newEnvelope(t)
+        envelope, sender, recipient := newTestEnvelope(t)
 
-        err := envelope.Encrypt(outbuffer, inbuffer)
+        err := envelope.encrypt(outbuffer, inbuffer, []byte("foofile.dmg"))
         if err != nil {
 		t.Fatalf("failed to encrypt %v", err)
 	}
 
         roundtripbuffer := bytes.NewBuffer(make([]byte, 0, 1024))
         
-        err = Decrypt(roundtripbuffer, outbuffer, recipient, func(email []byte) (*rsa.PublicKey, os.Error) {
+        err = decrypt(roundtripbuffer, outbuffer, recipient, func(email []byte) (*rsa.PublicKey, os.Error) {
 		return sender, nil
 	})
         if err != nil {

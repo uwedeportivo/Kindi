@@ -11,19 +11,20 @@ import (
         "encoding/binary"
         "fmt"
         "io"
+	"path/filepath"
         "os"
 )
 
-type Envelope struct {
+type envelope struct {
         senderEmail []byte
         senderKey *rsa.PrivateKey
         recipientKey *rsa.PublicKey
 }
 
-type KeychainFunc func(email []byte) (*rsa.PublicKey, os.Error)
+type keychainFunc func(email []byte) (*rsa.PublicKey, os.Error)
 
-func NewEnvelope(email string, sender *rsa.PrivateKey, recipient *rsa.PublicKey) *Envelope {
-        return &Envelope{senderEmail: []byte(email), senderKey: sender, recipientKey: recipient}
+func newEnvelope(recipient *rsa.PublicKey) *envelope {
+        return &envelope{senderEmail: myGmailAddress, senderKey: myPrivateKey, recipientKey: recipient}
 }
 
 func newCipherStream(symmetricKey []byte) (cipher.Stream, os.Error) {
@@ -72,7 +73,7 @@ func readLengthEncoded(r io.Reader) (data []byte, err os.Error) {
         return data, nil
 }
 
-func (envelope *Envelope) newHeader(symmetricKey []byte) (header []byte, err os.Error) {
+func (envelope *envelope) newHeader(symmetricKey []byte, name []byte) (header []byte, err os.Error) {
         result := bytes.NewBuffer(make([]byte, 0, 1024))
 
         hash := sha1.New()
@@ -106,6 +107,11 @@ func (envelope *Envelope) newHeader(symmetricKey []byte) (header []byte, err os.
                 return nil, err
         }
 
+	err = writeLengthEncoded(buf, name)
+        if err != nil {
+                return nil, err
+        }
+
         stream, err := newCipherStream(symmetricKey)
         if err != nil {
                 return nil, err
@@ -117,23 +123,23 @@ func (envelope *Envelope) newHeader(symmetricKey []byte) (header []byte, err os.
         return result.Bytes(), nil
 }
 
-func decryptHeader(header []byte, priv *rsa.PrivateKey, keychain KeychainFunc) ([]byte, os.Error) {
+func decryptHeader(header []byte, priv *rsa.PrivateKey, keychain keychainFunc) ([]byte, []byte, os.Error) {
         buf := bytes.NewBuffer(header)
 
         encryptedSymmetricKey, err := readLengthEncoded(buf)
         if err != nil {
-                return nil, err
+                return nil, nil, err
         }
 
         hash := sha1.New()
         decrypted, err := rsa.DecryptOAEP(hash, rand.Reader, priv, encryptedSymmetricKey, nil)
         if err != nil {
-                return nil, err
+                return nil, nil, err
         }
 
         stream, err := newCipherStream(decrypted)
         if err != nil {
-                return nil, err
+                return nil, nil, err
         }
 
         tempBuf := bytes.NewBuffer(make([]byte, 0, 1024))
@@ -143,32 +149,40 @@ func decryptHeader(header []byte, priv *rsa.PrivateKey, keychain KeychainFunc) (
  
         senderEmail, err := readLengthEncoded(tempBuf)
         if err != nil {
-                return nil, err
+                return nil, nil, err
         }
 
         sig, err := readLengthEncoded(tempBuf)
         if err != nil {
-                return nil, err
+                return nil, nil, err
+        }
+
+	name, err := readLengthEncoded(tempBuf)
+	if err != nil {
+                return nil, nil, err
         }
 
 	sender, err := keychain(senderEmail)
+	if err != nil {
+                return nil, nil, err
+        }
 
         hash = sha1.New()
         hash.Write(senderEmail)
         sum := hash.Sum()
         err = rsa.VerifyPKCS1v15(sender, crypto.SHA1, sum, sig)
         if err != nil {
-                return nil, err
+                return nil, nil, err
         }
 
-        return decrypted, nil
+        return decrypted, name, nil
 }
 
-func (envelope *Envelope) Encrypt(w io.Writer, r io.Reader) os.Error {
+func (envelope *envelope) encrypt(w io.Writer, r io.Reader, name []byte) os.Error {
         symmetricKey := make([]byte, 32)
         rand.Read(symmetricKey)
 
-        header, err := envelope.newHeader(symmetricKey)
+        header, err := envelope.newHeader(symmetricKey, name)
         if err != nil {
                 return err
         }
@@ -188,17 +202,7 @@ func (envelope *Envelope) Encrypt(w io.Writer, r io.Reader) os.Error {
         return nil
 }
 
-func Decrypt(w io.Writer, r io.Reader, priv *rsa.PrivateKey, keychain KeychainFunc) os.Error {
-        header, err := readLengthEncoded(r)
-        if err != nil {
-                return err
-        }
-
-        symmetricKey, err := decryptHeader(header, priv, keychain)
-        if err != nil {
-                return err
-        }
-        
+func decryptBody(w io.Writer, r io.Reader, symmetricKey []byte) os.Error {
         stream, err := newCipherStream(symmetricKey)
         if err != nil {
                 return err
@@ -208,4 +212,67 @@ func Decrypt(w io.Writer, r io.Reader, priv *rsa.PrivateKey, keychain KeychainFu
         io.Copy(w, decryptReader)
         return nil
 }
+
+func decrypt(w io.Writer, r io.Reader, priv *rsa.PrivateKey, keychain keychainFunc) os.Error {
+        header, err := readLengthEncoded(r)
+        if err != nil {
+                return err
+        }
+
+        symmetricKey, _, err := decryptHeader(header, priv, keychain)
+        if err != nil {
+                return err
+        }
+
+	return decryptBody(w, r, symmetricKey)
+}
+
+func EncryptFile(recipientEmail []byte, path string) os.Error {
+	_, name := filepath.Split(path)
+
+	outPath := path + ".kindi"
+
+	r, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+
+	w, err := os.Create(outPath)
+	if err != nil {
+		return err
+	}
+
+	recipientKey, err := FetchCert(recipientEmail)
+	if err != nil {
+		return err
+	}
+	envelope := newEnvelope(recipientKey)
+
+	return envelope.encrypt(w, r, []byte(name))
+}
+
+func DecryptFile(path string) (string, os.Error) {
+	dir, _ := filepath.Split(path)
+
+	r, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+
+	header, err := readLengthEncoded(r)
+        if err != nil {
+                return "", err
+        }
+
+	symmetricKey, name, err := decryptHeader(header, myPrivateKey, FetchCert)
+	outPath := filepath.Join(dir, string(name))
+	
+	w, err := os.Create(outPath)
+	if err != nil {
+		return "", err
+	}
+	
+	return outPath, decryptBody(w, r, symmetricKey)
+}
+
   
