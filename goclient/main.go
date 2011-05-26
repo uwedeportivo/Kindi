@@ -2,6 +2,7 @@ package main
 
 import (
         "flag"
+	"fmt"
         "kindi"
         "log"
         "os"
@@ -9,9 +10,30 @@ import (
 
 const baseUrl = "https://uwe-oauth.appspot.com"
 
+func usage() {
+	fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "\t%s <options> command <command options>\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "\tValid options: --help\n")
+	fmt.Fprintf(os.Stderr, "\tValid commands: encrypt, decrypt\n")
+	fmt.Fprintf(os.Stderr, "\t\tOptions for encrypt command: --in <path to file to be encrypted> --to <gmail address of recipient>\n")
+	fmt.Fprintf(os.Stderr, "\t\tOptions for decrypt command: --in <path to file to be decrypted>\n")
+	fmt.Fprintf(os.Stderr, "\tExample usage:\n")
+	fmt.Fprintf(os.Stderr, "\t\tEncrypting a file: %s encrypt --in foo.txt --to johndoe@gmail.com\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "\t\tDecrypting a file: %s decrypt --in foo.txt.kindi\n", os.Args[0])
+}
+
 func main() {
+	flag.Usage = usage
+
 	configDir := flag.String("config", "", "path to config directory")
+	help := flag.Bool("help", false, "show this message")
+
 	flag.Parse()
+
+	if *help {
+		flag.Usage()
+		os.Exit(0)
+	}
 
 	err := kindi.InitKeychain(*configDir)
 	if err != nil {
@@ -24,6 +46,7 @@ func main() {
         switch subcmd {
         case "encrypt" : doEncrypt()
         case "decrypt" : doDecrypt()
+	default: flag.Usage()
         }        
 }
 
