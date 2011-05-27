@@ -157,7 +157,7 @@ func decryptHeader(header []byte, priv *rsa.PrivateKey, keychain keychainFunc) (
                 return nil, nil, nil, err
         }
 
-	name, err := readLengthEncoded(tempBuf)
+	filename, err := readLengthEncoded(tempBuf)
 	if err != nil {
                 return nil, nil, nil, err
         }
@@ -167,6 +167,10 @@ func decryptHeader(header []byte, priv *rsa.PrivateKey, keychain keychainFunc) (
                 return nil, nil, nil, err
         }
 
+	if sender == nil {
+		return nil, nil, nil, fmt.Errorf("Could not verify senders %s certificate", string(senderEmail))
+	}
+
         hash = sha1.New()
         hash.Write(senderEmail)
         sum := hash.Sum()
@@ -175,7 +179,7 @@ func decryptHeader(header []byte, priv *rsa.PrivateKey, keychain keychainFunc) (
                 return nil, nil, nil, err
         }
 
-        return decrypted, name, senderEmail, nil
+        return decrypted, filename, senderEmail, nil
 }
 
 func (envelope *envelope) encrypt(w io.Writer, r io.Reader, name []byte) os.Error {
@@ -271,6 +275,10 @@ func DecryptFile(path string) (string, string, os.Error) {
         }
 
 	symmetricKey, filename, sender, err := decryptHeader(header, myPrivateKey, FetchCert)
+	if err != nil {
+		return "", "", err
+	}
+
 	outPath := filepath.Join(dir, string(filename))
 	
 	w, err := os.Create(outPath)

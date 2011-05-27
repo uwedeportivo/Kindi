@@ -10,7 +10,6 @@ import (
 	"json"
 	"io"
 	"io/ioutil"
-	"log"
         "os"
 	"os/user"
 	"path/filepath"
@@ -133,9 +132,13 @@ func InitKeychain(configDir string) os.Error {
 	if err != nil {
 		if pe, ok := err.(*os.PathError); ok && pe.Error == os.ENOENT {
 			fmt.Println("Authentication Procedure (Don't worry, you only have to do this once)\n")
-			fmt.Printf("Please enter your gmail address: ")
+			fmt.Printf("Please enter your gmail address (full address with @gmail.com or your @ Google Apps domain): ")
 			gmail := ""
 			fmt.Scanln(&gmail)
+
+			if !strings.Contains(gmail, "@") {
+				gmail = gmail + "@gmail.com"
+			}
 
 			utoken, url, err := oauthConsumer.GetRequestTokenAndUrl("oob")
 			if err != nil {
@@ -221,11 +224,12 @@ func InitKeychain(configDir string) os.Error {
         }
 
 	if !bytes.Equal(goldenBytes, certBytes) {
-		log.Println("detected stale or non-existent certificate in cloud: uploading certificate from config directory")
+		fmt.Println("Uploading your certificate")
 		response, err := oauthConsumer.Post(baseUrl + "/cert", string(goldenBytes), "application/x-pem-file", nil, oauthAccessToken)
 		if err != nil || response.StatusCode != 200 {
 			return fmt.Errorf("Failed to upload my own certificate error: %v, statusCode %v", err, response.Status)
 		}
+		fmt.Println("Succeeded. Your Gmail address is your identity with Kindi")
 	}
 	return nil
 }
