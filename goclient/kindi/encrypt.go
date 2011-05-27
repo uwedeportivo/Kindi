@@ -123,23 +123,23 @@ func (envelope *envelope) newHeader(symmetricKey []byte, name []byte) (header []
         return result.Bytes(), nil
 }
 
-func decryptHeader(header []byte, priv *rsa.PrivateKey, keychain keychainFunc) ([]byte, []byte, os.Error) {
+func decryptHeader(header []byte, priv *rsa.PrivateKey, keychain keychainFunc) ([]byte, []byte, []byte, os.Error) {
         buf := bytes.NewBuffer(header)
 
         encryptedSymmetricKey, err := readLengthEncoded(buf)
         if err != nil {
-                return nil, nil, err
+                return nil, nil, nil, err
         }
 
         hash := sha1.New()
         decrypted, err := rsa.DecryptOAEP(hash, rand.Reader, priv, encryptedSymmetricKey, nil)
         if err != nil {
-                return nil, nil, err
+                return nil, nil, nil, err
         }
 
         stream, err := newCipherStream(decrypted)
         if err != nil {
-                return nil, nil, err
+                return nil, nil, nil, err
         }
 
         tempBuf := bytes.NewBuffer(make([]byte, 0, 1024))
@@ -149,22 +149,22 @@ func decryptHeader(header []byte, priv *rsa.PrivateKey, keychain keychainFunc) (
  
         senderEmail, err := readLengthEncoded(tempBuf)
         if err != nil {
-                return nil, nil, err
+                return nil, nil, nil, err
         }
 
         sig, err := readLengthEncoded(tempBuf)
         if err != nil {
-                return nil, nil, err
+                return nil, nil, nil, err
         }
 
 	name, err := readLengthEncoded(tempBuf)
 	if err != nil {
-                return nil, nil, err
+                return nil, nil, nil, err
         }
 
 	sender, err := keychain(senderEmail)
 	if err != nil {
-                return nil, nil, err
+                return nil, nil, nil, err
         }
 
         hash = sha1.New()
@@ -172,10 +172,10 @@ func decryptHeader(header []byte, priv *rsa.PrivateKey, keychain keychainFunc) (
         sum := hash.Sum()
         err = rsa.VerifyPKCS1v15(sender, crypto.SHA1, sum, sig)
         if err != nil {
-                return nil, nil, err
+                return nil, nil, nil, err
         }
 
-        return decrypted, name, nil
+        return decrypted, name, senderEmail, nil
 }
 
 func (envelope *envelope) encrypt(w io.Writer, r io.Reader, name []byte) os.Error {
@@ -219,7 +219,7 @@ func decrypt(w io.Writer, r io.Reader, priv *rsa.PrivateKey, keychain keychainFu
                 return err
         }
 
-        symmetricKey, _, err := decryptHeader(header, priv, keychain)
+        symmetricKey, _, _, err := decryptHeader(header, priv, keychain)
         if err != nil {
                 return err
         }
@@ -246,33 +246,39 @@ func EncryptFile(recipientEmail []byte, path string) os.Error {
 	if err != nil {
 		return err
 	}
+
+	if recipientKey == nil {
+		fmt.Printf("Recipient %s has not used Kindi yet. Please ask recipient to install Kindi and run it at least once.\n", string(recipientEmail))
+		return fmt.Errorf("Failed to find certificate for recipient %s", string(recipientEmail))
+	}
+
 	envelope := newEnvelope(recipientKey)
 
 	return envelope.encrypt(w, r, []byte(name))
 }
 
-func DecryptFile(path string) (string, os.Error) {
+func DecryptFile(path string) (string, string, os.Error) {
 	dir, _ := filepath.Split(path)
 
 	r, err := os.Open(path)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	header, err := readLengthEncoded(r)
         if err != nil {
-                return "", err
+                return "", "", err
         }
 
-	symmetricKey, name, err := decryptHeader(header, myPrivateKey, FetchCert)
-	outPath := filepath.Join(dir, string(name))
+	symmetricKey, filename, sender, err := decryptHeader(header, myPrivateKey, FetchCert)
+	outPath := filepath.Join(dir, string(filename))
 	
 	w, err := os.Create(outPath)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	
-	return outPath, decryptBody(w, r, symmetricKey)
+	return outPath, string(sender), decryptBody(w, r, symmetricKey)
 }
 
   

@@ -14,6 +14,7 @@ import (
         "os"
 	"os/user"
 	"path/filepath"
+	"strings"
 	"syscall"
         "time"
 
@@ -96,13 +97,20 @@ func fetchCertBytes(email []byte) ([]byte, os.Error) {
 	if err != nil {
 		return nil, err
 	}
-	return []byte(certResult["cert"]), nil
+	
+	if certBytes, ok := certResult["cert"]; ok {
+		return []byte(certBytes), nil
+	}
+	return nil, nil
 }
 
 func FetchCert(email []byte) (*rsa.PublicKey, os.Error) {
 	certBytes, err := fetchCertBytes(email)
 	if err != nil {
 		return nil, err
+	}
+	if certBytes == nil {
+		return nil, nil
 	}
 	return ParseCertificate(certBytes)
 }
@@ -140,6 +148,8 @@ func InitKeychain(configDir string) os.Error {
 			
 			verificationCode := ""
 			fmt.Scanln(&verificationCode)
+			
+			verificationCode = strings.TrimSpace(verificationCode)
 			
 			atoken, err := oauthConsumer.AuthorizeToken(utoken, verificationCode)
 			if err != nil {

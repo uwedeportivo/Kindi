@@ -57,19 +57,23 @@ func doEncrypt() {
         flag.Parse()
 
 	if len(*in) == 0 {
-		log.Println("--in cmd line argument required")
+		fmt.Println("--in cmd line argument required")
+		flag.Usage()
+		os.Exit(0)
 	}
 	if len(*to) == 0 {
-		log.Println("--to cmd line argument required")
+		fmt.Println("--to cmd line argument required")
+		flag.Usage()
+		os.Exit(0)
 	}
 	
-	log.Printf("encrypting %v\n", *in)
+	fmt.Printf("encrypting %v\n", *in)
 	
 	err := kindi.EncryptFile([]byte(*to), *in)
 	if err != nil {
 		log.Fatalf("Error: encrypting file %v: %v", *in, err)
 	}
-	log.Println("finished")
+	fmt.Printf("finished encrypting file %s\n", *in)
 }
 
 func doDecrypt() {
@@ -78,15 +82,17 @@ func doDecrypt() {
         flag.Parse()
 
 	if len(*in) == 0 {
-		log.Println("--in cmd line argument required")
+		fmt.Println("--in cmd line argument required")
+		flag.Usage()
+		os.Exit(0)
 	}
 	
-	log.Printf("decrypting %v\n", *in)
+	fmt.Printf("decrypting %v\n", *in)
 	
-	out, err := kindi.DecryptFile(*in)
+	out, sender, err := kindi.DecryptFile(*in)
 	if err != nil {
 		log.Fatalf("Error: decrypting file %v: %v", *in, err)
 	}
-	log.Printf("finished decrypting into %v\n", out)
+	fmt.Printf("finished decrypting %s from %s into %s\n", *in, sender, out)
 }
 

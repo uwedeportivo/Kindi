@@ -38,7 +38,7 @@ func TestNewHeader(t *testing.T) {
 		t.Fatalf("failed new header %v", err)
 	}
         
-        decryptedKey, name, err := decryptHeader(header, recipient, func(email []byte) (*rsa.PublicKey, os.Error) {
+        decryptedKey, name, _, err := decryptHeader(header, recipient, func(email []byte) (*rsa.PublicKey, os.Error) {
 		return sender, nil
 	})
         if err != nil {
