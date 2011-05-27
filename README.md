@@ -1,5 +1,5 @@
-Kindi Encryption Commandline Tool
-=================================
+Kindi Encryption
+================
 
 What ?
 ------
@@ -43,7 +43,7 @@ Or you can build it from source. Source code for everything is provided at https
 Usage
 -----
 
-You run Kindi in a terminal window. It gets installed in /usr/local/bin. If you have that on your $PATH you can just type 
+You run Kindi in a terminal window. It gets installed as /usr/local/bin/kindi. If you have that on your $PATH you can just type 
 
     kindi --help:
 
