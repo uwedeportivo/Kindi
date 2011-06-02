@@ -1,3 +1,9 @@
+DO NOT USE YET. HAS SERIOUS BUG. WAIT UNTIL I FIX THAT
+======================================================
+
+dchest was kind enough to try this out and discovered that payload can be modified by attacker without the tool noticing.
+
+
 Kindi Encryption
 ================
 
