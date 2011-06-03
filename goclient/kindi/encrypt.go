@@ -5,11 +5,13 @@ import (
         "crypto"
         "crypto/aes"
         "crypto/cipher"
+	"crypto/hmac"
         "crypto/rand"
         "crypto/rsa"
         "crypto/sha1"
         "encoding/binary"
         "fmt"
+	"hash"
         "io"
 	"path/filepath"
         "os"
@@ -27,14 +29,14 @@ func newEnvelope(recipient *rsa.PublicKey) *envelope {
         return &envelope{senderEmail: myGmailAddress, senderKey: myPrivateKey, recipientKey: recipient}
 }
 
-func newCipherStream(symmetricKey []byte) (cipher.Stream, os.Error) {
+func newCipherStream(symmetricKey []byte) (cipher.Stream, hash.Hash, os.Error) {
         c, err := aes.NewCipher(symmetricKey)
         if err != nil {
-                return nil, err
+                return nil, nil, err
         }
 
         if c == nil {
-                return nil, fmt.Errorf("Failed to create cipher")
+                return nil, nil, fmt.Errorf("Failed to create cipher")
         }
 
         iv := make([]byte, c.BlockSize())
@@ -42,9 +44,13 @@ func newCipherStream(symmetricKey []byte) (cipher.Stream, os.Error) {
         stream := cipher.NewOFB(c, iv)
         
         if stream == nil {
-                return nil, fmt.Errorf("Failed to create cipher.Stream")
+                return nil, nil, fmt.Errorf("Failed to create cipher.Stream")
         }
-        return stream, nil
+
+	hashSeed := make([]byte, 64)
+	c.Encrypt(hashSeed, hashSeed)
+	
+        return stream, hmac.NewSHA256(hashSeed), nil
 }
 
 func writeLengthEncoded(w io.Writer, data []byte) os.Error {
@@ -73,25 +79,25 @@ func readLengthEncoded(r io.Reader) (data []byte, err os.Error) {
         return data, nil
 }
 
-func (envelope *envelope) newHeader(symmetricKey []byte, name []byte) (header []byte, err os.Error) {
+func (envelope *envelope) newHeader(symmetricKey []byte, name []byte) (header []byte, headerHash []byte, err os.Error) {
         result := bytes.NewBuffer(make([]byte, 0, 1024))
 
         hash := sha1.New()
         encryptedSymmetricKey, err := rsa.EncryptOAEP(hash, rand.Reader, envelope.recipientKey, symmetricKey, nil)
         if err != nil {
-                return nil, err
+                return nil, nil, err
         }
 
         err = writeLengthEncoded(result, encryptedSymmetricKey)
         if err != nil {
-                return nil, err
+                return nil, nil, err
         }
 
         buf := bytes.NewBuffer(make([]byte, 0, 1024))
 
         err = writeLengthEncoded(buf, envelope.senderEmail)
         if err != nil {
-                return nil, err
+                return nil, nil, err
         }
 
         hash = sha1.New()
@@ -99,31 +105,99 @@ func (envelope *envelope) newHeader(symmetricKey []byte, name []byte) (header []
         sum := hash.Sum()
         sig, err := rsa.SignPKCS1v15(rand.Reader, envelope.senderKey, crypto.SHA1, sum)
         if err != nil {
-                return nil, err
+                return nil, nil, err
         }
 
         err = writeLengthEncoded(buf, sig)
         if err != nil {
-                return nil, err
+                return nil, nil, err
         }
 
 	err = writeLengthEncoded(buf, name)
         if err != nil {
-                return nil, err
+                return nil, nil, err
         }
 
-        stream, err := newCipherStream(symmetricKey)
+        stream, hmacHash, err := newCipherStream(symmetricKey)
         if err != nil {
-                return nil, err
+                return nil, nil, err
         }
 
-        encryptWriter := &cipher.StreamWriter{S: stream, W: result}
+        encryptWriter := &cipher.StreamWriter{S: stream, W: io.MultiWriter(result, hmacHash)}
         io.Copy(encryptWriter, buf)
 
-        return result.Bytes(), nil
+        return result.Bytes(), hmacHash.Sum(), nil
 }
 
-func decryptHeader(header []byte, priv *rsa.PrivateKey, keychain keychainFunc) ([]byte, []byte, []byte, os.Error) {
+type hashReader struct {
+	r io.Reader
+	h hash.Hash
+}
+
+func (hr *hashReader) Read(p []byte) (n int, err os.Error) {
+	n, err = hr.r.Read(p)
+
+	hs := p[0:n]
+	
+	hr.h.Write(hs)
+	return
+}
+
+type allButTailReader struct {
+	ru io.Reader
+	tmp [65536]byte
+	tailSize int
+	r, w int
+	err os.Error
+}
+
+func newAllButTailReader(r io.Reader, tailSize int) *allButTailReader {
+	rv := new(allButTailReader)
+	rv.ru = r
+	rv.tailSize = tailSize
+	return rv
+}
+
+func (b *allButTailReader) Read(p []byte) (n int, err os.Error) {
+	slice := b.tmp[:]
+
+	n = len(p)
+	if n == 0 {
+		return 0, b.err
+	}
+
+	if b.w <= b.r + b.tailSize {
+		if b.err != nil {
+			return 0, b.err
+		}
+		b.fill()
+		if b.w <= b.r + b.tailSize {
+			return 0, b.err
+		}
+	}
+	if n > b.w - b.r - b.tailSize {
+		n = b.w - b.r - b.tailSize
+	}
+	copy(p[0:n], slice[b.r:])
+	b.r += n
+	return n, nil
+}
+
+func (b *allButTailReader) fill() {
+	slice := b.tmp[:]
+
+	copy(slice, slice[b.r:b.w])
+	b.w -= b.r
+	b.r = 0
+
+	n, err := b.ru.Read(slice[b.w:])
+	b.w += n
+	if err != nil {
+		b.err = err
+	}
+}
+
+func decryptHeader(header []byte, headerHash []byte, priv *rsa.PrivateKey, keychain keychainFunc) ([]byte, []byte, []byte, os.Error) {
         buf := bytes.NewBuffer(header)
 
         encryptedSymmetricKey, err := readLengthEncoded(buf)
@@ -137,15 +211,19 @@ func decryptHeader(header []byte, priv *rsa.PrivateKey, keychain keychainFunc) (
                 return nil, nil, nil, err
         }
 
-        stream, err := newCipherStream(decrypted)
+        stream, hmacHash, err := newCipherStream(decrypted)
         if err != nil {
                 return nil, nil, nil, err
         }
 
         tempBuf := bytes.NewBuffer(make([]byte, 0, 1024))
-        decryptReader := &cipher.StreamReader{S: stream, R: buf}
+        decryptReader := &cipher.StreamReader{S: stream, R: &hashReader{r:buf, h:hmacHash}}
 
         io.Copy(tempBuf, decryptReader)
+
+	if !bytes.Equal(headerHash, hmacHash.Sum()) {
+                return nil, nil, nil, fmt.Errorf("expected hmac hash and calculated hmac hash not equal")
+        }
  
         senderEmail, err := readLengthEncoded(tempBuf)
         if err != nil {
@@ -184,9 +262,13 @@ func decryptHeader(header []byte, priv *rsa.PrivateKey, keychain keychainFunc) (
 
 func (envelope *envelope) encrypt(w io.Writer, r io.Reader, name []byte) os.Error {
         symmetricKey := make([]byte, 32)
-        rand.Read(symmetricKey)
+	
+	_, err:= io.ReadFull(rand.Reader, symmetricKey)
+	if err != nil {
+		return err
+	}
 
-        header, err := envelope.newHeader(symmetricKey, name)
+        header, headerHash, err := envelope.newHeader(symmetricKey, name)
         if err != nil {
                 return err
         }
@@ -196,24 +278,38 @@ func (envelope *envelope) encrypt(w io.Writer, r io.Reader, name []byte) os.Erro
                 return err
         }
 
-        stream, err := newCipherStream(symmetricKey)
+	err = writeLengthEncoded(w, headerHash)
+	if err != nil {
+                return err
+        }
+
+        stream, hmacHash, err := newCipherStream(symmetricKey)
         if err != nil {
                 return err
         }
 
-        encryptWriter := &cipher.StreamWriter{S: stream, W: w}
+        encryptWriter := &cipher.StreamWriter{S: stream, W: io.MultiWriter(w, hmacHash)}
         io.Copy(encryptWriter, r)
+	w.Write(hmacHash.Sum())
+
         return nil
 }
 
 func decryptBody(w io.Writer, r io.Reader, symmetricKey []byte) os.Error {
-        stream, err := newCipherStream(symmetricKey)
+        stream, hmacHash, err := newCipherStream(symmetricKey)
         if err != nil {
                 return err
         }
 
-        decryptReader := &cipher.StreamReader{S: stream, R: r}
+	abtr := newAllButTailReader(r, hmacHash.Size()) 
+
+        decryptReader := &cipher.StreamReader{S: stream, R: &hashReader{r:abtr, h:hmacHash}}
         io.Copy(w, decryptReader)
+	
+	if !bytes.Equal(abtr.tmp[abtr.r:abtr.w], hmacHash.Sum()) {
+                return fmt.Errorf("expected hmac hash and calculated hmac hash not equal")
+        }
+
         return nil
 }
 
@@ -223,7 +319,12 @@ func decrypt(w io.Writer, r io.Reader, priv *rsa.PrivateKey, keychain keychainFu
                 return err
         }
 
-        symmetricKey, _, _, err := decryptHeader(header, priv, keychain)
+	headerHash, err := readLengthEncoded(r)
+        if err != nil {
+                return err
+        }
+
+        symmetricKey, _, _, err := decryptHeader(header, headerHash, priv, keychain)
         if err != nil {
                 return err
         }
@@ -274,7 +375,12 @@ func DecryptFile(path string) (string, string, os.Error) {
                 return "", "", err
         }
 
-	symmetricKey, filename, sender, err := decryptHeader(header, myPrivateKey, FetchCert)
+	headerHash, err := readLengthEncoded(r)
+        if err != nil {
+                return "", "", err
+        }
+
+	symmetricKey, filename, sender, err := decryptHeader(header, headerHash, myPrivateKey, FetchCert)
 	if err != nil {
 		return "", "", err
 	}

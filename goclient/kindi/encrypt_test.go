@@ -33,12 +33,12 @@ func TestNewHeader(t *testing.T) {
         rand.Read(symmetricKey)
 
 	nameBytes := []byte("foofile.dmg")
-        header, err := envelope.newHeader(symmetricKey, nameBytes)
+        header, headerHash, err := envelope.newHeader(symmetricKey, nameBytes)
         if err != nil {
 		t.Fatalf("failed new header %v", err)
 	}
         
-        decryptedKey, name, _, err := decryptHeader(header, recipient, func(email []byte) (*rsa.PublicKey, os.Error) {
+        decryptedKey, name, _, err := decryptHeader(header, headerHash, recipient, func(email []byte) (*rsa.PublicKey, os.Error) {
 		return sender, nil
 	})
         if err != nil {
