@@ -12,14 +12,8 @@ const baseUrl = "https://uwe-oauth.appspot.com"
 
 func usage() {
 	fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
-	fmt.Fprintf(os.Stderr, "\t%s <options> command <command options>\n", os.Args[0])
-	fmt.Fprintf(os.Stderr, "\tValid options: --help\n")
-	fmt.Fprintf(os.Stderr, "\tValid commands: encrypt, decrypt\n")
-	fmt.Fprintf(os.Stderr, "\t\tOptions for encrypt command: --in <path to file to be encrypted> --to <gmail address of recipient>\n")
-	fmt.Fprintf(os.Stderr, "\t\tOptions for decrypt command: --in <path to file to be decrypted>\n")
-	fmt.Fprintf(os.Stderr, "\tExample usage:\n")
-	fmt.Fprintf(os.Stderr, "\t\tEncrypting a file: %s encrypt --in foo.txt --to johndoe@gmail.com\n", os.Args[0])
-	fmt.Fprintf(os.Stderr, "\t\tDecrypting a file: %s decrypt --in foo.txt.kindi\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "\t%s [--help] [--to <gmail address>] <file>\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "\tif --to flag is present, then kindi encrypts, otherwise it decrypts\n")
 }
 
 func main() {
@@ -27,6 +21,7 @@ func main() {
 
 	configDir := flag.String("config", "", "path to config directory")
 	help := flag.Bool("help", false, "show this message")
+	to := flag.String("to", "", "recipient gmail address")
 
 	flag.Parse()
 
@@ -40,59 +35,29 @@ func main() {
 		log.Fatalf("Error: Initializing keychain: %v", err)
 	}
 
-        flag.Parse()
-        subcmd := flag.Arg(0)
-        
-        switch subcmd {
-        case "encrypt" : doEncrypt()
-        case "decrypt" : doDecrypt()
-	default: flag.Usage()
-        }        
-}
+	args := flag.Args()
 
-func doEncrypt() {
-	in := flag.String("in", "", "file to be encrypted")
-	to := flag.String("to", "", "recipient gmail address")
-        os.Args = flag.Args()
-        flag.Parse()
-
-	if len(*in) == 0 {
-		fmt.Println("--in cmd line argument required")
+	if len(args) != 1 {
 		flag.Usage()
 		os.Exit(0)
 	}
+
 	if len(*to) == 0 {
-		fmt.Println("--to cmd line argument required")
-		flag.Usage()
-		os.Exit(0)
+		fmt.Printf("encrypting file %v\n", args[0])
+		
+		err := kindi.EncryptFile([]byte(*to), args[0])
+		if err != nil {
+			log.Fatalf("Error: encrypting file %v: %v", args[0], err)
+		}
+		fmt.Printf("finished encrypting file %s\n", args[0])
+		
+	} else {
+		fmt.Printf("decrypting %v\n", args[0])
+		
+		out, sender, err := kindi.DecryptFile(args[0])
+		if err != nil {
+			log.Fatalf("Error: decrypting file %v: %v", args[0], err)
+		}
+		fmt.Printf("finished decrypting %s from %s into %s\n", args[0], sender, out)
 	}
-	
-	fmt.Printf("encrypting %v\n", *in)
-	
-	err := kindi.EncryptFile([]byte(*to), *in)
-	if err != nil {
-		log.Fatalf("Error: encrypting file %v: %v", *in, err)
-	}
-	fmt.Printf("finished encrypting file %s\n", *in)
 }
-
-func doDecrypt() {
-        in := flag.String("in", "", "file to be decrypted")
-        os.Args = flag.Args()
-        flag.Parse()
-
-	if len(*in) == 0 {
-		fmt.Println("--in cmd line argument required")
-		flag.Usage()
-		os.Exit(0)
-	}
-	
-	fmt.Printf("decrypting %v\n", *in)
-	
-	out, sender, err := kindi.DecryptFile(*in)
-	if err != nil {
-		log.Fatalf("Error: decrypting file %v: %v", *in, err)
-	}
-	fmt.Printf("finished decrypting %s from %s into %s\n", *in, sender, out)
-}
-
