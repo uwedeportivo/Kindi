@@ -26,7 +26,7 @@ type envelope struct {
 type keychainFunc func(email []byte) (*rsa.PublicKey, os.Error)
 
 func newEnvelope(recipient *rsa.PublicKey) *envelope {
-        return &envelope{senderEmail: myGmailAddress, senderKey: myPrivateKey, recipientKey: recipient}
+        return &envelope{senderEmail: []byte(myGmail), senderKey: myPrivateKey, recipientKey: recipient}
 }
 
 func newCipherStream(symmetricKey []byte) (cipher.Stream, hash.Hash, os.Error) {

@@ -7,25 +7,18 @@ import (
         "crypto/x509"
         "encoding/pem"
         "fmt"
-	"json"
-	"io"
 	"io/ioutil"
         "os"
 	"os/user"
 	"path/filepath"
-	"strings"
 	"syscall"
+	"strings"
         "time"
-
-	"github.com/mrjones/oauth"
 )
 
-const baseUrl = "https://uwe-oauth.appspot.com"
-
 var myPrivateKey *rsa.PrivateKey
-var myGmailAddress []byte
-var oauthAccessToken *oauth.AccessToken
-var oauthConsumer *oauth.Consumer
+
+var myGmail string
 
 func mkKindiDir(path string) (string, os.Error) {
 	var name string
@@ -68,43 +61,8 @@ func readAll(path string) ([]byte, os.Error) {
 	return ioutil.ReadAll(r)
 }
 
-func fetchCertBytes(email []byte) ([]byte, os.Error) {
-	var url string
-	
-	url = baseUrl + "/cert"
-
-	var params map[string]string
-
-	if len(email) > 0 {
-		params = map[string]string{ "email": string(email) }
-	}
-	response, err := oauthConsumer.Get(url, params, oauthAccessToken)
-	if err != nil || response.StatusCode != 200 {
-		code := ""
-		if response != nil {
-			code = response.Status
-		}
-		return nil, fmt.Errorf("Failed to fetch certificate error: %v, statusCode %v", err, code)
-	}
-	defer response.Body.Close()
-
-	var certResult  map[string] string
-	fetchedBytesBuffer := bytes.NewBuffer(make([]byte, 0, 1024))
-	io.Copy(fetchedBytesBuffer, response.Body)
-
-	err = json.Unmarshal(fetchedBytesBuffer.Bytes(), &certResult)
-	if err != nil {
-		return nil, err
-	}
-	
-	if certBytes, ok := certResult["cert"]; ok {
-		return []byte(certBytes), nil
-	}
-	return nil, nil
-}
-
 func FetchCert(email []byte) (*rsa.PublicKey, os.Error) {
-	certBytes, err := fetchCertBytes(email)
+	certBytes, err := fetchCertBytes(string(email))
 	if err != nil {
 		return nil, err
 	}
@@ -115,23 +73,15 @@ func FetchCert(email []byte) (*rsa.PublicKey, os.Error) {
 }
 
 func InitKeychain(configDir string) os.Error {
-	provider := oauth.ServiceProvider {
-	RequestTokenUrl:   baseUrl + "/_ah/OAuthGetRequestToken",
-	AccessTokenUrl: baseUrl + "/_ah/OAuthGetAccessToken",
-	AuthorizeTokenUrl:    baseUrl + "/_ah/OAuthAuthorizeToken",
-	}
-	oauthConsumer = oauth.NewConsumer("845249837160.apps.googleusercontent.com", "2a6SruHha24RD6W-JdtC9oMu", provider)
-
 	kindiDirName, err := mkKindiDir(configDir)
 	if err != nil {
 		return err
 	}
 
-	oauthPath := filepath.Join(kindiDirName, "oauth")
-	_, err = os.Stat(oauthPath)
+	userPath := filepath.Join(kindiDirName, "me")
+	_, err = os.Stat(userPath)
 	if err != nil {
 		if pe, ok := err.(*os.PathError); ok && pe.Error == os.ENOENT {
-			fmt.Println("Authentication Procedure (Don't worry, you only have to do this once)\n")
 			fmt.Printf("Please enter your gmail address (full address with @gmail.com or your @ Google Apps domain): ")
 			gmail := ""
 			fmt.Scanln(&gmail)
@@ -139,65 +89,34 @@ func InitKeychain(configDir string) os.Error {
 			if !strings.Contains(gmail, "@") {
 				gmail = gmail + "@gmail.com"
 			}
-
-			utoken, url, err := oauthConsumer.GetRequestTokenAndUrl("oob")
+			
+			userOut, err := os.OpenFile(userPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 			if err != nil {
 				return err
 			}
 			
-			fmt.Println("\nPlease authenticate with Google by visiting the following URL:\n")
-			fmt.Println(url)
-			fmt.Printf("\nGrant access, and then enter the verification code here: ")
-			
-			verificationCode := ""
-			fmt.Scanln(&verificationCode)
-			
-			verificationCode = strings.TrimSpace(verificationCode)
-			
-			atoken, err := oauthConsumer.AuthorizeToken(utoken, verificationCode)
-			if err != nil {
-				return err
-			}
-			oauthOut, err := os.OpenFile(oauthPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-			if err != nil {
-				return err
-			}
-			writeLengthEncoded(oauthOut, []byte(atoken.Token))
-			writeLengthEncoded(oauthOut, []byte(atoken.Secret))
-			writeLengthEncoded(oauthOut, []byte(gmail))
-			oauthOut.Close()
+			userOut.Write([]byte(gmail))
+			userOut.Close()
 		} else {
 			return err
 		}
 	}
 
-	oauthIn, err := os.Open(oauthPath)
+	userBytes, err := readAll(userPath)
         if err != nil {
                 return err
         }
-	var oauthToken []byte
-	oauthToken, err  = readLengthEncoded(oauthIn)
-	if err != nil {
-                return err
-        }
-	var oauthSecret []byte
-	oauthSecret, err  = readLengthEncoded(oauthIn)
-	if err != nil {
-                return err
-        }
-	myGmailAddress, err = readLengthEncoded(oauthIn)
-	if err != nil {
-                return err
-        }
-	oauthAccessToken = &oauth.AccessToken{Token: string(oauthToken), Secret: string(oauthSecret)}
 
+	myGmail = string(userBytes)
+	
 	meKeyPath := filepath.Join(kindiDirName, "me_key.pem")
 	meCertPath := filepath.Join(kindiDirName, "me_cert.pem")
+	mePNGPath := filepath.Join(kindiDirName, "me_cert.png")
 
 	_, err = os.Stat(meKeyPath)
 	if err != nil {
 		if pe, ok := err.(*os.PathError); ok && pe.Error == os.ENOENT {
-			err = Generate(meCertPath, meKeyPath)
+			err = Generate(meCertPath, mePNGPath, meKeyPath)
 			if err != nil {
 				return err
 			}
@@ -216,25 +135,32 @@ func InitKeychain(configDir string) os.Error {
 		return err
 	}
 
-	certBytes, err := fetchCertBytes(nil)
+	certBytes, err := fetchCertBytes(myGmail)
+	if err != nil {
+                return err
+        }
 
 	goldenBytes, err := readAll(meCertPath)
 	if err != nil {
                 return err
         }
 
-	if !bytes.Equal(goldenBytes, certBytes) {
+	goldenPemBlock, err := ParsePem(goldenBytes)
+        if err != nil {
+                return err
+        }
+
+	if !bytes.Equal(goldenPemBlock.Bytes, certBytes) {
 		fmt.Println("Uploading your certificate")
-		response, err := oauthConsumer.Post(baseUrl + "/cert", string(goldenBytes), "application/x-pem-file", nil, oauthAccessToken)
-		if err != nil || response.StatusCode != 200 {
-			return fmt.Errorf("Failed to upload my own certificate error: %v, statusCode %v", err, response.Status)
+		err = uploadCertPNG(mePNGPath)
+		if err != nil {
+			return err
 		}
-		fmt.Println("Succeeded. Your Gmail address is your identity with Kindi")
 	}
 	return nil
 }
 
-func Generate(certoutPath, keyoutPath string) os.Error {
+func Generate(certoutPath, pngoutPath, keyoutPath string) os.Error {
         priv, err := rsa.GenerateKey(rand.Reader, 1024)
         if err != nil {
                 return err
@@ -273,7 +199,18 @@ func Generate(certoutPath, keyoutPath string) os.Error {
         }
         pem.Encode(keyOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes:x509.MarshalPKCS1PrivateKey(priv)})
         keyOut.Close()
-        
+
+	pngOut, err := os.OpenFile(pngoutPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+                return err
+        }
+	
+	err = EncodePNG(pngOut, derBytes)
+        if err != nil {
+                return err
+        }
+	pngOut.Close()
+
         return nil
 }
 
