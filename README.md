@@ -47,7 +47,7 @@ You run Kindi in a terminal window. It gets installed as /usr/local/bin/kindi. I
 
     kindi --help:
 
-Usage of ./kindi:
+    Usage of ./kindi:
 	./kindi [--help] [--to <gmail address>] <file>
 	if --to flag is present, then kindi encrypts, otherwise it decrypts
 
