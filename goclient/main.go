@@ -70,7 +70,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	if len(*to) == 0 {
+	if len(*to) > 0 {
 		fmt.Printf("encrypting file %v\n", args[0])
 		
 		err := kindi.EncryptFile([]byte(*to), args[0])

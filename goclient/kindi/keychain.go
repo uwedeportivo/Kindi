@@ -98,7 +98,7 @@ func FetchCert(email []byte) (*rsa.PublicKey, os.Error) {
 	if certBytes == nil {
 		return nil, nil
 	}
-	return ParseCertificate(certBytes)
+	return parseCertificate(certBytes)
 }
 
 func InitKeychain(configDir string) os.Error {
@@ -159,7 +159,7 @@ func InitKeychain(configDir string) os.Error {
 		return err
 	}
 
-	myPrivateKey, err = ParseKey(keyBytes)
+	myPrivateKey, err = parseKey(keyBytes)
 	if err != nil {
 		return err
 	}
@@ -174,7 +174,7 @@ func InitKeychain(configDir string) os.Error {
                 return err
         }
 
-	goldenPemBlock, err := ParsePem(goldenBytes)
+	goldenPemBlock, err := parsePem(goldenBytes)
         if err != nil {
                 return err
         }
@@ -243,7 +243,7 @@ func Generate(certoutPath, pngoutPath, keyoutPath string) os.Error {
         return nil
 }
 
-func ParsePem(pemBytes []byte) (*pem.Block, os.Error) {
+func parsePem(pemBytes []byte) (*pem.Block, os.Error) {
         pemBlock, _ := pem.Decode(pemBytes)
         if pemBlock == nil {
                 return nil, fmt.Errorf("Failed to decode pem")
@@ -251,13 +251,8 @@ func ParsePem(pemBytes []byte) (*pem.Block, os.Error) {
         return pemBlock, nil
 }
 
-func ParseCertificate(certBytes []byte) (*rsa.PublicKey, os.Error) {
-        pemBlock, err := ParsePem(certBytes)
-        if err != nil {
-                return nil, err
-        }
-
-        cert, err := x509.ParseCertificate(pemBlock.Bytes)
+func parseCertificate(certBytes []byte) (*rsa.PublicKey, os.Error) {
+        cert, err := x509.ParseCertificate(certBytes)
         if err != nil {
                 return nil, err
         }
@@ -271,8 +266,8 @@ func ParseCertificate(certBytes []byte) (*rsa.PublicKey, os.Error) {
         return rsaPub, nil
 }
 
-func ParseKey(keyBytes []byte) (*rsa.PrivateKey, os.Error) {
-        pemBlock, err := ParsePem(keyBytes)
+func parseKey(keyBytes []byte) (*rsa.PrivateKey, os.Error) {
+        pemBlock, err := parsePem(keyBytes)
         if err != nil {
                 return nil, err
         }

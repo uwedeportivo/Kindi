@@ -190,8 +190,8 @@ func fetchCertBytes(user string) ([]byte, os.Error) {
 func oauthClient() (*http.Client, os.Error) {
 	oauthConfig := 
 		&oauth.Config{
-	ClientId:     "845249837160.apps.googleusercontent.com",
-	ClientSecret: "2a6SruHha24RD6W-JdtC9oMu",
+	ClientId:     "...",
+	ClientSecret: "...",
 	Scope:        "http://picasaweb.google.com/data",
 	AuthURL:      "https://accounts.google.com/o/oauth2/auth",
 	TokenURL:     "https://accounts.google.com/o/oauth2/token",
