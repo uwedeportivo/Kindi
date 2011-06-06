@@ -76,6 +76,8 @@ It looks like this in a terminal window:
     Uploading your certificate
     Authentication Procedure (In order to upload your certificate to picasaweb we need to oauth with Google)
 
+    Please authenticate with Google by visiting the following URL:
+
     https://accounts.google.com/o/oauth2/auth?state=&scope=http%3A%2F%2Fpicasaweb.google.com%....
 
     Grant access, and then enter the verification code here:
