@@ -71,19 +71,18 @@ The first time you run Kindi it will need to generate your private key and the s
 It looks like this in a terminal window:
 
     $kindi
-    Authentication Procedure (Don't worry, you only have to do this once)
+    Please enter your gmail address (full address with @gmail.com or your @ Google Apps domain):
 
-    Please enter your gmail address: johnny@gmail.com
+    Uploading your certificate
+    Authentication Procedure (In order to upload your certificate to picasaweb we need to oauth with Google)
 
-    Please authenticate with Google by visiting the following URL:
-
-    https://uwe-oauth.appspot.com/_ah/OAuthAuthorizeToken?oauth_token=4/qwerqwi....
+    https://accounts.google.com/o/oauth2/auth?state=&scope=http%3A%2F%2Fpicasaweb.google.com%....
 
     Grant access, and then enter the verification code here:
  
-There are two prompts where Kindi expects you to enter something: first you need to tell it the Gmail address you would like to use. It will then generate a URL you should visit in a browser. You can login to Google there and grant Kindi access to https://uwe-oauth.appspot.com (don't worry, you're not granting it any other access and you're not revealing your Gmail password to Kindi either; it is a normal OAuth authentication process). You then need to copy the verification code and paste it in the terminal window where Kindi is waiting for it.
+There are two prompts where Kindi expects you to enter something: first you need to tell it the Gmail address you would like to use. It will then generate a URL you should visit in a browser. You can login to Google there and grant Kindi access to Picasaweb. You then need to copy the verification code and paste it in the terminal window where Kindi is waiting for it.
 
-You only have to do this once. Kindi remembers your entries (storing them in $HOME/.kindi) and it will use them the next time.
+You have to do this every time Kindi decides to upload your certificate to Picasaweb.
 
 Future Plans
 ------------
@@ -91,7 +90,6 @@ Future Plans
 If this approach generates some interest I will try continue and refine it. Here are some ideas:
 
 * Support for users with more than one machine. This is easy, Kindi needs to learn to deal with more than one certificate for a given Gmail address.
-* Make it more unixy. Support stdin and stdout as file inputs/outputs. More refined error handling. Polish.
 * Provide a GUI. A local web app is probably best with a native launcher providing chrome and dock icon. Kindi could run as a local web server and OAuth flow would be nicer.
 
 
