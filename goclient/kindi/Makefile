@@ -5,8 +5,10 @@ include $(GOROOT)/src/Make.inc
 
 TARG=kindi
 GOFILES=\
+	bitmap.go\
 	encrypt.go\
 	keychain.go\
+	picasa.go\
 
 # gb: this is the local install
 GBROOT=..
