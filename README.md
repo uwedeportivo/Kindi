@@ -38,7 +38,7 @@ Installation
 
 For Mac OS 10.6 you can download an Installer Package from https://github.com/uwedeportivo/Kindi (look for the downloads button and then choose kindi package). It will install as /usr/local/bin/kindi.
 
-Or you can build it from source. Source code for everything is provided at https://github.com/uwedeportivo/Kindi. That includes the go client and the modified oauth go package by http://mrjon.es/oauth-go/ (modified to support POST http requests).
+Or you can build it from source. You need http://www.golang.org installed to do so.
 
 Usage
 -----
