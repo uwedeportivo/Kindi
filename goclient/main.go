@@ -37,10 +37,11 @@ import (
 )
 
 const baseUrl = "https://uwe-oauth.appspot.com"
+const versionStr = "1.2"
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
-	fmt.Fprintf(os.Stderr, "\t%s [--help] [--to <gmail address>] <file>\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "%s version %s:\n", os.Args[0], versionStr)
+	fmt.Fprintf(os.Stderr, "\t%s [--help] [--version] [--to <gmail address>] <file>\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "\tif --to flag is present, then kindi encrypts, otherwise it decrypts\n")
 }
 
@@ -49,11 +50,12 @@ func main() {
 
 	configDir := flag.String("config", "", "path to config directory")
 	help := flag.Bool("help", false, "show this message")
+	version := flag.Bool("version", false, "show version")
 	to := flag.String("to", "", "recipient gmail address")
 
 	flag.Parse()
 
-	if *help {
+	if *help || *version {
 		flag.Usage()
 		os.Exit(0)
 	}
