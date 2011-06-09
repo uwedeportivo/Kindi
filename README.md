@@ -59,7 +59,7 @@ This will generate foo.txt.kindi in the same directory where foo.txt is.
 		
 Example usage of decrypting a file: 
 
-	kindi decrypt foo.txt.kindi
+	kindi foo.txt.kindi
 
 This will put the decrypted foo.txt in the same directory where foo.txt.kindi is.
 
