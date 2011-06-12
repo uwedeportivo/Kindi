@@ -70,7 +70,9 @@ func (pi *payloadImage) b(i int) byte {
 }
 
 func (pi *payloadImage) At(x, y int) image.Color {
-	if !pi.bounds.Contains(image.Point{x, y}) {
+	p := image.Point{x, y}
+
+	if !p.In(pi.bounds) {
 		return image.NRGBAColor{}
 	}
 

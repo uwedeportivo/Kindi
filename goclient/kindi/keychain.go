@@ -30,10 +30,12 @@
 package kindi
 
 import (
+	"big"
         "bytes"
         "crypto/rsa"
         "crypto/rand"
         "crypto/x509"
+	"crypto/x509/pkix"
         "encoding/pem"
         "fmt"
 	"io/ioutil"
@@ -198,8 +200,8 @@ func Generate(certoutPath, pngoutPath, keyoutPath string) os.Error {
         now := time.Seconds()
         
         template := x509.Certificate{
-        SerialNumber: []byte{0},
-        Subject: x509.Name{
+        SerialNumber: big.NewInt(0),
+        Subject: pkix.Name{
                 CommonName:   "kindi",
                 Organization: []string{"codemanic.com"},
                 },

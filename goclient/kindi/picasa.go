@@ -64,7 +64,7 @@ func jsonPath(object interface{}, path string) interface{} {
 
 func fetchKindiAlbumId(user string) (string, os.Error) {
 	url := "https://picasaweb.google.com/data/feed/api/user/" + user + "?alt=json"
-	httpResponse, _, err := http.DefaultClient.Get(url)
+	httpResponse, err := http.DefaultClient.Get(url)
 	if err != nil {
 		return "", err
 	}
@@ -129,7 +129,7 @@ func fetchImageURL(user string) (string, os.Error) {
 
 	url := "https://picasaweb.google.com/data/feed/api/user/" + user + "/albumid/" + albumId + "?alt=json"
 
-	httpResponse, _, err := http.DefaultClient.Get(url)
+	httpResponse, err := http.DefaultClient.Get(url)
 	if err != nil {
 		return "", err
 	}
@@ -179,7 +179,7 @@ func fetchCertBytes(user string) ([]byte, os.Error) {
 		return nil, nil
 	}
 
-	httpResponse, _, err := http.DefaultClient.Get(imageURL)
+	httpResponse, err := http.DefaultClient.Get(imageURL)
 	if err != nil {
 		return nil, err
 	}
