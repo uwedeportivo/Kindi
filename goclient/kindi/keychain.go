@@ -38,13 +38,19 @@ import (
 	"crypto/x509/pkix"
         "encoding/pem"
         "fmt"
+	"http"
+	"io"
 	"io/ioutil"
+	"image"
         "os"
 	"os/user"
 	"path/filepath"
 	"syscall"
 	"strings"
         "time"
+
+	_ "image/jpeg"
+	_ "image/png"
 )
 
 var myPrivateKey *rsa.PrivateKey
@@ -147,7 +153,13 @@ func InitKeychain(configDir string) os.Error {
 	_, err = os.Stat(meKeyPath)
 	if err != nil {
 		if pe, ok := err.(*os.PathError); ok && pe.Error == os.ENOENT {
-			err = Generate(meCertPath, mePNGPath, meKeyPath)
+			fmt.Printf("Please enter path to an image (jpeg or png) you would like to use as your certificate holder\n")
+			fmt.Printf("(any image will do, but an image of you would be nice)\n")
+			fmt.Printf("image path (just press enter for a default image):")
+			imageOfMePath := ""
+			fmt.Scanln(&imageOfMePath)
+
+			err = Generate(meCertPath, mePNGPath, meKeyPath, imageOfMePath)
 			if err != nil {
 				return err
 			}
@@ -191,7 +203,33 @@ func InitKeychain(configDir string) os.Error {
 	return nil
 }
 
-func Generate(certoutPath, pngoutPath, keyoutPath string) os.Error {
+func fetchImageOfMe(imageOfMePath string) (image.Image, os.Error) {
+	var r io.Reader
+	var err os.Error
+
+	if len(imageOfMePath) == 0 {
+		httpResponse, err := http.DefaultClient.Get("http://www.codemanic.com/kindi/default.png")
+		if err != nil {
+			return nil, err
+		}
+		defer httpResponse.Body.Close()
+		r = httpResponse.Body
+	} else {
+		f, err := os.Open(imageOfMePath)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		r = f
+	}
+	m, _, err := image.Decode(r)
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func Generate(certoutPath, pngoutPath, keyoutPath , imageOfMePath string) os.Error {
         priv, err := rsa.GenerateKey(rand.Reader, 1024)
         if err != nil {
                 return err
@@ -236,7 +274,12 @@ func Generate(certoutPath, pngoutPath, keyoutPath string) os.Error {
                 return err
         }
 	
-	err = EncodePNG(pngOut, derBytes)
+	img, err := fetchImageOfMe(imageOfMePath)
+	if err != nil {
+                return err
+        }
+
+	err = EncodePNG(pngOut, derBytes, img)
         if err != nil {
                 return err
         }
