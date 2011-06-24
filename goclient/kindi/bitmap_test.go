@@ -65,7 +65,18 @@ func TestPNG(t *testing.T) {
 
 	buf := bytes.NewBuffer(make([]byte, 0, 1024))
 
-	err := EncodePNG(buf, payload)
+	r, err := os.Open("./testdata/uwe.jpeg")
+	if err != nil {
+		t.Fatalf("failed %v", err)
+	}
+	defer r.Close()
+
+	m, err := jpeg.Decode(r)
+	if err != nil {
+		t.Fatalf("failed %v", err)
+	}
+
+	err = EncodePNG(buf, payload, m)
         if err != nil {
 		t.Fatalf("failed to encode as PNG %v", err)
 	}

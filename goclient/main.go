@@ -37,7 +37,7 @@ import (
 )
 
 const baseUrl = "https://uwe-oauth.appspot.com"
-const versionStr = "1.2"
+const versionStr = "1.3"
 
 func usage() {
 	fmt.Fprintf(os.Stderr, "%s version %s:\n", os.Args[0], versionStr)
