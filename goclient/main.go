@@ -29,11 +29,11 @@
 package main
 
 import (
-        "flag"
+	"flag"
 	"fmt"
-        "kindi"
-        "log"
-        "os"
+	"kindi"
+	"log"
+	"os"
 )
 
 const baseUrl = "https://uwe-oauth.appspot.com"
@@ -74,16 +74,16 @@ func main() {
 
 	if len(*to) > 0 {
 		fmt.Printf("encrypting file %v\n", args[0])
-		
+
 		err := kindi.EncryptFile([]byte(*to), args[0])
 		if err != nil {
 			log.Fatalf("Error: encrypting file %v: %v", args[0], err)
 		}
 		fmt.Printf("finished encrypting file %s\n", args[0])
-		
+
 	} else {
 		fmt.Printf("decrypting %v\n", args[0])
-		
+
 		out, sender, err := kindi.DecryptFile(args[0])
 		if err != nil {
 			log.Fatalf("Error: decrypting file %v: %v", args[0], err)

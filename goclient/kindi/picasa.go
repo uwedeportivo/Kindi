@@ -41,25 +41,25 @@ import (
 	"strconv"
 
 	"goauth2.googlecode.com/hg/oauth"
-	)
+)
 
 func jsonPath(object interface{}, path string) interface{} {
 	if object == nil {
 		return nil
 	}
 
-	keys := strings.Split(path, "/", -1)
+	keys := strings.Split(path, "/")
 
 	if len(keys) == 0 {
 		return object
 	}
 
 	o := object.(map[string]interface{})
-	for i := 0; i < len(keys) - 1; i++ {
+	for i := 0; i < len(keys)-1; i++ {
 		o = o[keys[i]].(map[string]interface{})
 	}
 
-	return o[keys[len(keys) - 1]]
+	return o[keys[len(keys)-1]]
 }
 
 func fetchKindiAlbumId(user string) (string, os.Error) {
@@ -73,7 +73,7 @@ func fetchKindiAlbumId(user string) (string, os.Error) {
 
 	if httpResponse.StatusCode >= 300 {
 		rb, _ := ioutil.ReadAll(httpResponse.Body)
-		fmt.Printf("fetchKindiAlbumId failed: response body =  %s\n", rb) 
+		fmt.Printf("fetchKindiAlbumId failed: response body =  %s\n", rb)
 		return "", fmt.Errorf("fetchKindiAlbumId: got status code %d from http.Get(%s)", httpResponse.StatusCode, url)
 	}
 
@@ -85,7 +85,7 @@ func fetchKindiAlbumId(user string) (string, os.Error) {
 	}
 
 	albumsList := jsonPath(jsonResponse, "feed/entry")
-	
+
 	if albumsList == nil {
 		return "", nil
 	}
@@ -106,7 +106,7 @@ func fetchKindiAlbumId(user string) (string, os.Error) {
 			if err != nil {
 				continue
 			}
-			
+
 			if ts > timestamp {
 				albumId = jsonPath(albums[i], "gphoto$id/$t").(string)
 				timestamp = ts
@@ -122,7 +122,7 @@ func fetchImageURL(user string) (string, os.Error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	if len(albumId) == 0 {
 		return "", nil
 	}
@@ -142,7 +142,7 @@ func fetchImageURL(user string) (string, os.Error) {
 
 	if httpResponse.StatusCode >= 300 {
 		rb, _ := ioutil.ReadAll(httpResponse.Body)
-		fmt.Printf("fetchImageURL failed: response body =  %s\n", rb) 
+		fmt.Printf("fetchImageURL failed: response body =  %s\n", rb)
 		return "", fmt.Errorf("fetchImageURL: got status code %d from http.Get(%s)", httpResponse.StatusCode, url)
 	}
 
@@ -164,7 +164,7 @@ func fetchImageURL(user string) (string, os.Error) {
 	if len(images) == 0 {
 		return "", nil
 	}
-	
+
 	return jsonPath(images[0], "content/src").(string), nil
 }
 
@@ -192,7 +192,7 @@ func fetchCertBytes(user string) ([]byte, os.Error) {
 
 	if httpResponse.StatusCode >= 300 {
 		rb, _ := ioutil.ReadAll(httpResponse.Body)
-		fmt.Printf("fetchCertBytes: response body =  %s\n", rb) 
+		fmt.Printf("fetchCertBytes: response body =  %s\n", rb)
 		return nil, fmt.Errorf("fetchCertBytes: got status code %d from http.Get(%s)", httpResponse.StatusCode, imageURL)
 	}
 
@@ -200,31 +200,31 @@ func fetchCertBytes(user string) ([]byte, os.Error) {
 }
 
 func oauthClient() (*http.Client, os.Error) {
-	oauthConfig := 
+	oauthConfig :=
 		&oauth.Config{
-	ClientId:     "...",
-	ClientSecret: "...",
-	Scope:        "http://picasaweb.google.com/data",
-	AuthURL:      "https://accounts.google.com/o/oauth2/auth",
-	TokenURL:     "https://accounts.google.com/o/oauth2/token",
-	RedirectURL:  "",
-	}
-	
+			ClientId:     "...",
+			ClientSecret: "...",
+			Scope:        "http://picasaweb.google.com/data",
+			AuthURL:      "https://accounts.google.com/o/oauth2/auth",
+			TokenURL:     "https://accounts.google.com/o/oauth2/token",
+			RedirectURL:  "",
+		}
+
 	var transport = &oauth.Transport{Config: oauthConfig}
 
 	fmt.Println("Authentication Procedure (In order to upload your certificate to picasaweb we need to oauth with Google)\n")
-	
+
 	url := oauthConfig.AuthCodeURL("")
 
 	fmt.Println("\nPlease authenticate with Google by visiting the following URL:\n")
 	fmt.Println(url)
 	fmt.Printf("\nGrant access, and then enter the verification code here: ")
-			
+
 	verificationCode := ""
 	fmt.Scanln(&verificationCode)
-	
+
 	verificationCode = strings.TrimSpace(verificationCode)
-			
+
 	_, err := transport.Exchange(verificationCode)
 	if err != nil {
 		return nil, err
@@ -260,26 +260,26 @@ func uploadCertPNG(path string) os.Error {
 
 	if httpResponse.StatusCode >= 300 {
 		rb, _ := ioutil.ReadAll(httpResponse.Body)
-		fmt.Printf("uploadCertPNG failed: response body =  %s\n", rb) 
+		fmt.Printf("uploadCertPNG failed: response body =  %s\n", rb)
 		return fmt.Errorf("uploadCertPNG: got status code %d from http.Post(%s)", httpResponse.StatusCode, url)
 	}
 
 	return nil
 }
 
-func createKindiAlbum(httpClient *http.Client) (string, os.Error) {	
-	albumCreateReader := bytes.NewBuffer([]byte(fmt.Sprintf(albumCreateBodyTemplate, time.Seconds() * 1000)))	
+func createKindiAlbum(httpClient *http.Client) (string, os.Error) {
+	albumCreateReader := bytes.NewBuffer([]byte(fmt.Sprintf(albumCreateBodyTemplate, time.Seconds()*1000)))
 	url := "https://picasaweb.google.com/data/feed/api/user/" + myGmail + "?alt=json"
 	httpResponse, err := httpClient.Post(url, "application/atom+xml", albumCreateReader)
 	if err != nil {
 		return "", err
 	}
-	
+
 	defer httpResponse.Body.Close()
 
 	if httpResponse.StatusCode >= 300 {
 		rb, _ := ioutil.ReadAll(httpResponse.Body)
-		fmt.Printf("createKindiAlbum post failed: response body =  %s\n", rb) 		
+		fmt.Printf("createKindiAlbum post failed: response body =  %s\n", rb)
 		return "", fmt.Errorf("createKindiAlbum: post: got status code %d from http.Post(%s)", httpResponse.StatusCode, url)
 	}
 
@@ -295,9 +295,7 @@ func createKindiAlbum(httpClient *http.Client) (string, os.Error) {
 
 const kindiAlbumName = "kindi"
 
-const albumCreateBodyTemplate =
-		
-`<entry xmlns='http://www.w3.org/2005/Atom'
+const albumCreateBodyTemplate = `<entry xmlns='http://www.w3.org/2005/Atom'
     xmlns:media='http://search.yahoo.com/mrss/'
     xmlns:gphoto='http://schemas.google.com/photos/2007'>
   <title type='text'>kindi</title>
@@ -305,11 +303,11 @@ const albumCreateBodyTemplate =
   <gphoto:location>kindi app</gphoto:location>
   <gphoto:access>public</gphoto:access>
   <gphoto:timestamp>%d</gphoto:timestamp>
+  <media:title>kindi public key certificate</media:title>
+  <media:description type='plain'>for more info on kindi visit github.com/uwedeportivo/Kindi</media:description>
   <media:group>
     <media:keywords>kindi, encryption</media:keywords>
   </media:group>
   <category scheme='http://schemas.google.com/g/2005#kind'
     term='http://schemas.google.com/photos/2007#album'></category>
 </entry>`
-
-

@@ -37,7 +37,7 @@ import (
 )
 
 func TestPNG(t *testing.T) {
-        payload := []byte{0xd9, 0x4a, 0xe0, 0x83, 0x2e, 0x64, 0x45, 0xce,
+	payload := []byte{0xd9, 0x4a, 0xe0, 0x83, 0x2e, 0x64, 0x45, 0xce,
 		0x42, 0x33, 0x1c, 0xb0, 0x6d, 0x53, 0x1a, 0x82, 0xb1,
 		0xdb, 0x4b, 0xaa, 0xd3, 0x0f, 0x74, 0x6d, 0xc9, 0x16,
 		0xdf, 0x24, 0xd4, 0xe3, 0xc2, 0x45, 0x1f, 0xff, 0x59,
@@ -77,7 +77,7 @@ func TestPNG(t *testing.T) {
 	}
 
 	err = EncodePNG(buf, payload, m)
-        if err != nil {
+	if err != nil {
 		t.Fatalf("failed to encode as PNG %v", err)
 	}
 
@@ -85,10 +85,10 @@ func TestPNG(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to decode PNG %v", err)
 	}
-	
-	if ! bytes.Equal(outpayload, payload) {
-                t.Fatalf("decoded payload different from original payload")
-        }
+
+	if !bytes.Equal(outpayload, payload) {
+		t.Fatalf("decoded payload different from original payload")
+	}
 }
 
 func TestEmbed(t *testing.T) {
@@ -144,9 +144,9 @@ func TestEmbed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed %v", err)
 	}
-	
-	if ! bytes.Equal(outpayload, payload) {
-                t.Fatalf("decoded payload different from original payload")
-        }
+
+	if !bytes.Equal(outpayload, payload) {
+		t.Fatalf("decoded payload different from original payload")
+	}
 
 }

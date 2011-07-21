@@ -49,18 +49,18 @@ func EncodePNG(w io.Writer, payload []byte, m image.Image) os.Error {
 }
 
 func DecodePNG(rin io.Reader) ([]byte, os.Error) {
-	m, err := png.Decode(rin) 
+	m, err := png.Decode(rin)
 	if err != nil {
 		return nil, err
 	}
 
 	nrgba := newNRGBAImageLSBReaderWriter(m)
-	
+
 	return readLengthEncoded(nrgba)
 }
 
 type nrgbaImageLSBReaderWriter struct {
-	m *image.NRGBA
+	m       *image.NRGBA
 	x, y, q int
 }
 
@@ -73,11 +73,11 @@ func newNRGBAImageLSBReaderWriter(im image.Image) *nrgbaImageLSBReaderWriter {
 
 	b := im.Bounds()
 
-	rv.m = image.NewNRGBA(b.Max.X - b.Min.X, b.Max.Y - b.Min.Y)
+	rv.m = image.NewNRGBA(b.Max.X-b.Min.X, b.Max.Y-b.Min.Y)
 
 	for y := b.Min.Y; y < b.Max.Y; y++ {
 		for x := b.Min.X; x < b.Max.X; x++ {
-			rv.m.Set(x - b.Min.X, y - b.Min.Y, im.At(x, y))
+			rv.m.Set(x-b.Min.X, y-b.Min.Y, im.At(x, y))
 		}
 	}
 	return rv
@@ -94,7 +94,7 @@ func (it *nrgbaImageLSBReaderWriter) Read(p []byte) (n int, err os.Error) {
 	for j, _ := range p {
 		var rv byte = 0
 		var i uint8
-		for  i = 0; i < 8; i++ {
+		for i = 0; i < 8; i++ {
 			it.q++
 			if it.q == 3 {
 				it.q = 0
@@ -107,13 +107,16 @@ func (it *nrgbaImageLSBReaderWriter) Read(p []byte) (n int, err os.Error) {
 					}
 				}
 			}
-			
+
 			color := it.m.At(it.x, it.y).(image.NRGBAColor)
 			var colorByte byte
-			switch (it.q) {
-			case 0 : colorByte = color.R
-			case 1 : colorByte = color.G
-			case 2 : colorByte = color.B
+			switch it.q {
+			case 0:
+				colorByte = color.R
+			case 1:
+				colorByte = color.G
+			case 2:
+				colorByte = color.B
 			}
 			rv = rv | ((colorByte & 1) << i)
 		}
@@ -149,13 +152,16 @@ func (it *nrgbaImageLSBReaderWriter) Write(p []byte) (n int, err os.Error) {
 						return n, os.EOF
 					}
 				}
-                       }
-			
+			}
+
 			color := it.m.At(it.x, it.y).(image.NRGBAColor)
-			switch (it.q) {
-			case 0 : color.R = setLSB(color.R, (v >> i) & 1)
-			case 1 : color.G = setLSB(color.G, (v >> i) & 1)
-			case 2 : color.B = setLSB(color.B, (v >> i) & 1)
+			switch it.q {
+			case 0:
+				color.R = setLSB(color.R, (v>>i)&1)
+			case 1:
+				color.G = setLSB(color.G, (v>>i)&1)
+			case 2:
+				color.B = setLSB(color.B, (v>>i)&1)
 			}
 			it.m.Set(it.x, it.y, color)
 		}
@@ -163,4 +169,3 @@ func (it *nrgbaImageLSBReaderWriter) Write(p []byte) (n int, err os.Error) {
 	}
 	return n, nil
 }
-
