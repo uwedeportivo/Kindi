@@ -30,23 +30,23 @@
 package kindi
 
 import (
-	"big"
 	"bytes"
-	"crypto/rsa"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	"http"
+	"image"
 	"io"
 	"io/ioutil"
-	"image"
+	"math/big"
+	"net/http"
 	"os"
 	"os/user"
 	"path/filepath"
-	"syscall"
 	"strings"
+	"syscall"
 	"time"
 
 	_ "image/jpeg"
@@ -57,7 +57,7 @@ var myPrivateKey *rsa.PrivateKey
 
 var myGmail string
 
-func mkKindiDir(path string) (string, os.Error) {
+func mkKindiDir(path string) (string, error) {
 	var name string
 
 	if len(path) == 0 {
@@ -81,7 +81,7 @@ func mkKindiDir(path string) (string, os.Error) {
 
 	err := os.Mkdir(name, 0700)
 	if err != nil {
-		if pe, ok := err.(*os.PathError); ok && pe.Error == os.EEXIST {
+		if pe, ok := err.(*os.PathError); ok && pe.Err == os.EEXIST {
 			return name, nil
 		}
 		return "", err
@@ -89,7 +89,7 @@ func mkKindiDir(path string) (string, os.Error) {
 	return name, nil
 }
 
-func readAll(path string) ([]byte, os.Error) {
+func readAll(path string) ([]byte, error) {
 	r, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -98,7 +98,7 @@ func readAll(path string) ([]byte, os.Error) {
 	return ioutil.ReadAll(r)
 }
 
-func FetchCert(email []byte) (*rsa.PublicKey, os.Error) {
+func FetchCert(email []byte) (*rsa.PublicKey, error) {
 	certBytes, err := fetchCertBytes(string(email))
 	if err != nil {
 		return nil, err
@@ -109,7 +109,7 @@ func FetchCert(email []byte) (*rsa.PublicKey, os.Error) {
 	return parseCertificate(certBytes)
 }
 
-func InitKeychain(configDir string) os.Error {
+func InitKeychain(configDir string) error {
 	kindiDirName, err := mkKindiDir(configDir)
 	if err != nil {
 		return err
@@ -118,7 +118,7 @@ func InitKeychain(configDir string) os.Error {
 	userPath := filepath.Join(kindiDirName, "me")
 	_, err = os.Stat(userPath)
 	if err != nil {
-		if pe, ok := err.(*os.PathError); ok && pe.Error == os.ENOENT {
+		if pe, ok := err.(*os.PathError); ok && pe.Err == os.ENOENT {
 			fmt.Printf("Please enter your gmail address (full address with @gmail.com or your @ Google Apps domain): ")
 			gmail := ""
 			fmt.Scanln(&gmail)
@@ -152,7 +152,7 @@ func InitKeychain(configDir string) os.Error {
 
 	_, err = os.Stat(meKeyPath)
 	if err != nil {
-		if pe, ok := err.(*os.PathError); ok && pe.Error == os.ENOENT {
+		if pe, ok := err.(*os.PathError); ok && pe.Err == os.ENOENT {
 			fmt.Printf("Please enter path to an image (jpeg or png) you would like to use as your certificate holder\n")
 			fmt.Printf("(any image will do, but an image of you would be nice)\n")
 			fmt.Printf("image path (just press enter for a default image):")
@@ -203,9 +203,9 @@ func InitKeychain(configDir string) os.Error {
 	return nil
 }
 
-func fetchImageOfMe(imageOfMePath string) (image.Image, os.Error) {
+func fetchImageOfMe(imageOfMePath string) (image.Image, error) {
 	var r io.Reader
-	var err os.Error
+	var err error
 
 	if len(imageOfMePath) == 0 {
 		httpResponse, err := http.DefaultClient.Get("http://www.codemanic.com/kindi/default.png")
@@ -229,7 +229,7 @@ func fetchImageOfMe(imageOfMePath string) (image.Image, os.Error) {
 	return m, nil
 }
 
-func Generate(certoutPath, pngoutPath, keyoutPath, imageOfMePath string) os.Error {
+func Generate(certoutPath, pngoutPath, keyoutPath, imageOfMePath string) error {
 	priv, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
 		return err
@@ -288,7 +288,7 @@ func Generate(certoutPath, pngoutPath, keyoutPath, imageOfMePath string) os.Erro
 	return nil
 }
 
-func parsePem(pemBytes []byte) (*pem.Block, os.Error) {
+func parsePem(pemBytes []byte) (*pem.Block, error) {
 	pemBlock, _ := pem.Decode(pemBytes)
 	if pemBlock == nil {
 		return nil, fmt.Errorf("Failed to decode pem")
@@ -296,7 +296,7 @@ func parsePem(pemBytes []byte) (*pem.Block, os.Error) {
 	return pemBlock, nil
 }
 
-func parseCertificate(certBytes []byte) (*rsa.PublicKey, os.Error) {
+func parseCertificate(certBytes []byte) (*rsa.PublicKey, error) {
 	cert, err := x509.ParseCertificate(certBytes)
 	if err != nil {
 		return nil, err
@@ -311,7 +311,7 @@ func parseCertificate(certBytes []byte) (*rsa.PublicKey, os.Error) {
 	return rsaPub, nil
 }
 
-func parseKey(keyBytes []byte) (*rsa.PrivateKey, os.Error) {
+func parseKey(keyBytes []byte) (*rsa.PrivateKey, error) {
 	pemBlock, err := parsePem(keyBytes)
 	if err != nil {
 		return nil, err

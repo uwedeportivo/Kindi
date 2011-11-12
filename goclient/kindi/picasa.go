@@ -31,14 +31,14 @@ package kindi
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
-	"json"
-	"http"
-	"os"
-	"strings"
 	"io/ioutil"
-	"time"
+	"net/http"
+	"os"
 	"strconv"
+	"strings"
+	"time"
 
 	"goauth2.googlecode.com/hg/oauth"
 )
@@ -62,7 +62,7 @@ func jsonPath(object interface{}, path string) interface{} {
 	return o[keys[len(keys)-1]]
 }
 
-func fetchKindiAlbumId(user string) (string, os.Error) {
+func fetchKindiAlbumId(user string) (string, error) {
 	url := "https://picasaweb.google.com/data/feed/api/user/" + user + "?alt=json"
 	httpResponse, err := http.DefaultClient.Get(url)
 	if err != nil {
@@ -117,7 +117,7 @@ func fetchKindiAlbumId(user string) (string, os.Error) {
 	return albumId, nil
 }
 
-func fetchImageURL(user string) (string, os.Error) {
+func fetchImageURL(user string) (string, error) {
 	albumId, err := fetchKindiAlbumId(user)
 	if err != nil {
 		return "", err
@@ -168,7 +168,7 @@ func fetchImageURL(user string) (string, os.Error) {
 	return jsonPath(images[0], "content/src").(string), nil
 }
 
-func fetchCertBytes(user string) ([]byte, os.Error) {
+func fetchCertBytes(user string) ([]byte, error) {
 	imageURL, err := fetchImageURL(user)
 
 	if err != nil {
@@ -199,7 +199,7 @@ func fetchCertBytes(user string) ([]byte, os.Error) {
 	return DecodePNG(httpResponse.Body)
 }
 
-func oauthClient() (*http.Client, os.Error) {
+func oauthClient() (*http.Client, error) {
 	oauthConfig :=
 		&oauth.Config{
 			ClientId:     "...",
@@ -233,7 +233,7 @@ func oauthClient() (*http.Client, os.Error) {
 	return transport.Client(), nil
 }
 
-func uploadCertPNG(path string) os.Error {
+func uploadCertPNG(path string) error {
 	httpClient, err := oauthClient()
 	if err != nil {
 		return err
@@ -267,7 +267,7 @@ func uploadCertPNG(path string) os.Error {
 	return nil
 }
 
-func createKindiAlbum(httpClient *http.Client) (string, os.Error) {
+func createKindiAlbum(httpClient *http.Client) (string, error) {
 	albumCreateReader := bytes.NewBuffer([]byte(fmt.Sprintf(albumCreateBodyTemplate, time.Seconds()*1000)))
 	url := "https://picasaweb.google.com/data/feed/api/user/" + myGmail + "?alt=json"
 	httpResponse, err := httpClient.Post(url, "application/atom+xml", albumCreateReader)

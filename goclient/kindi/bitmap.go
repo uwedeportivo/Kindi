@@ -31,13 +31,13 @@ package kindi
 
 import (
 	"image"
-	"image/png"
+	"image/color"
 	_ "image/jpeg"
+	"image/png"
 	"io"
-	"os"
 )
 
-func EncodePNG(w io.Writer, payload []byte, m image.Image) os.Error {
+func EncodePNG(w io.Writer, payload []byte, m image.Image) error {
 	nrgba := newNRGBAImageLSBReaderWriter(m)
 
 	err := writeLengthEncoded(nrgba, payload)
@@ -48,7 +48,7 @@ func EncodePNG(w io.Writer, payload []byte, m image.Image) os.Error {
 	return png.Encode(w, nrgba.m)
 }
 
-func DecodePNG(rin io.Reader) ([]byte, os.Error) {
+func DecodePNG(rin io.Reader) ([]byte, error) {
 	m, err := png.Decode(rin)
 	if err != nil {
 		return nil, err
@@ -73,7 +73,7 @@ func newNRGBAImageLSBReaderWriter(im image.Image) *nrgbaImageLSBReaderWriter {
 
 	b := im.Bounds()
 
-	rv.m = image.NewNRGBA(b.Max.X-b.Min.X, b.Max.Y-b.Min.Y)
+	rv.m = image.NewNRGBA(image.Rect(0, 0, b.Max.X-b.Min.X, b.Max.Y-b.Min.Y))
 
 	for y := b.Min.Y; y < b.Max.Y; y++ {
 		for x := b.Min.X; x < b.Max.X; x++ {
@@ -89,7 +89,7 @@ func (it *nrgbaImageLSBReaderWriter) reset() {
 	it.q = -1
 }
 
-func (it *nrgbaImageLSBReaderWriter) Read(p []byte) (n int, err os.Error) {
+func (it *nrgbaImageLSBReaderWriter) Read(p []byte) (n int, err error) {
 	n = 0
 	for j, _ := range p {
 		var rv byte = 0
@@ -103,12 +103,12 @@ func (it *nrgbaImageLSBReaderWriter) Read(p []byte) (n int, err os.Error) {
 					it.x = it.m.Rect.Min.X
 					it.y++
 					if it.y == it.m.Rect.Max.Y {
-						return n, os.EOF
+						return n, io.EOF
 					}
 				}
 			}
 
-			color := it.m.At(it.x, it.y).(image.NRGBAColor)
+			color := it.m.At(it.x, it.y).(color.NRGBA)
 			var colorByte byte
 			switch it.q {
 			case 0:
@@ -136,7 +136,7 @@ func setLSB(val, bit byte) byte {
 	return rv
 }
 
-func (it *nrgbaImageLSBReaderWriter) Write(p []byte) (n int, err os.Error) {
+func (it *nrgbaImageLSBReaderWriter) Write(p []byte) (n int, err error) {
 	n = 0
 	for _, v := range p {
 		var i uint8
@@ -149,12 +149,12 @@ func (it *nrgbaImageLSBReaderWriter) Write(p []byte) (n int, err os.Error) {
 					it.x = it.m.Rect.Min.X
 					it.y++
 					if it.y == it.m.Rect.Max.Y {
-						return n, os.EOF
+						return n, io.EOF
 					}
 				}
 			}
 
-			color := it.m.At(it.x, it.y).(image.NRGBAColor)
+			color := it.m.At(it.x, it.y).(color.NRGBA)
 			switch it.q {
 			case 0:
 				color.R = setLSB(color.R, (v>>i)&1)

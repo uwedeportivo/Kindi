@@ -33,7 +33,6 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
-	"os"
 	"testing"
 )
 
@@ -67,7 +66,7 @@ func TestNewHeader(t *testing.T) {
 		t.Fatalf("failed new header %v", err)
 	}
 
-	decryptedKey, name, _, err := decryptHeader(header, headerHash, recipient, func(email []byte) (*rsa.PublicKey, os.Error) {
+	decryptedKey, name, _, err := decryptHeader(header, headerHash, recipient, func(email []byte) (*rsa.PublicKey, error) {
 		return sender, nil
 	})
 	if err != nil {
@@ -101,7 +100,7 @@ func TestEncrypt(t *testing.T) {
 
 	roundtripbuffer := bytes.NewBuffer(make([]byte, 0, 1024))
 
-	err = decrypt(roundtripbuffer, outbuffer, recipient, func(email []byte) (*rsa.PublicKey, os.Error) {
+	err = decrypt(roundtripbuffer, outbuffer, recipient, func(email []byte) (*rsa.PublicKey, error) {
 		return sender, nil
 	})
 	if err != nil {

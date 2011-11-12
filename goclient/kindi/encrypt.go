@@ -42,8 +42,8 @@ import (
 	"fmt"
 	"hash"
 	"io"
-	"path/filepath"
 	"os"
+	"path/filepath"
 )
 
 type envelope struct {
@@ -52,13 +52,13 @@ type envelope struct {
 	recipientKey *rsa.PublicKey
 }
 
-type keychainFunc func(email []byte) (*rsa.PublicKey, os.Error)
+type keychainFunc func(email []byte) (*rsa.PublicKey, error)
 
 func newEnvelope(recipient *rsa.PublicKey) *envelope {
 	return &envelope{senderEmail: []byte(myGmail), senderKey: myPrivateKey, recipientKey: recipient}
 }
 
-func newCipherStream(symmetricKey []byte) (cipher.Stream, hash.Hash, os.Error) {
+func newCipherStream(symmetricKey []byte) (cipher.Stream, hash.Hash, error) {
 	c, err := aes.NewCipher(symmetricKey)
 	if err != nil {
 		return nil, nil, err
@@ -82,7 +82,7 @@ func newCipherStream(symmetricKey []byte) (cipher.Stream, hash.Hash, os.Error) {
 	return stream, hmac.NewSHA256(hashSeed), nil
 }
 
-func writeLengthEncoded(w io.Writer, data []byte) os.Error {
+func writeLengthEncoded(w io.Writer, data []byte) error {
 	err := binary.Write(w, binary.BigEndian, int64(len(data)))
 	if err != nil {
 		return err
@@ -94,7 +94,7 @@ func writeLengthEncoded(w io.Writer, data []byte) os.Error {
 	return nil
 }
 
-func readLengthEncoded(r io.Reader) (data []byte, err os.Error) {
+func readLengthEncoded(r io.Reader) (data []byte, err error) {
 	var dataLen int64
 	err = binary.Read(r, binary.BigEndian, &dataLen)
 	if err != nil {
@@ -108,7 +108,7 @@ func readLengthEncoded(r io.Reader) (data []byte, err os.Error) {
 	return data, nil
 }
 
-func (envelope *envelope) newHeader(symmetricKey []byte, name []byte) (header []byte, headerHash []byte, err os.Error) {
+func (envelope *envelope) newHeader(symmetricKey []byte, name []byte) (header []byte, headerHash []byte, err error) {
 	result := bytes.NewBuffer(make([]byte, 0, 1024))
 
 	hash := sha1.New()
@@ -163,7 +163,7 @@ type hashReader struct {
 	h hash.Hash
 }
 
-func (hr *hashReader) Read(p []byte) (n int, err os.Error) {
+func (hr *hashReader) Read(p []byte) (n int, err error) {
 	n, err = hr.r.Read(p)
 
 	hs := p[0:n]
@@ -177,7 +177,7 @@ type allButTailReader struct {
 	tmp      [65536]byte
 	tailSize int
 	r, w     int
-	err      os.Error
+	err      error
 }
 
 func newAllButTailReader(r io.Reader, tailSize int) *allButTailReader {
@@ -187,7 +187,7 @@ func newAllButTailReader(r io.Reader, tailSize int) *allButTailReader {
 	return rv
 }
 
-func (b *allButTailReader) Read(p []byte) (n int, err os.Error) {
+func (b *allButTailReader) Read(p []byte) (n int, err error) {
 	slice := b.tmp[:]
 
 	n = len(p)
@@ -226,7 +226,7 @@ func (b *allButTailReader) fill() {
 	}
 }
 
-func decryptHeader(header []byte, headerHash []byte, priv *rsa.PrivateKey, keychain keychainFunc) ([]byte, []byte, []byte, os.Error) {
+func decryptHeader(header []byte, headerHash []byte, priv *rsa.PrivateKey, keychain keychainFunc) ([]byte, []byte, []byte, error) {
 	buf := bytes.NewBuffer(header)
 
 	encryptedSymmetricKey, err := readLengthEncoded(buf)
@@ -289,7 +289,7 @@ func decryptHeader(header []byte, headerHash []byte, priv *rsa.PrivateKey, keych
 	return decrypted, filename, senderEmail, nil
 }
 
-func (envelope *envelope) encrypt(w io.Writer, r io.Reader, name []byte) os.Error {
+func (envelope *envelope) encrypt(w io.Writer, r io.Reader, name []byte) error {
 	symmetricKey := make([]byte, 32)
 
 	_, err := io.ReadFull(rand.Reader, symmetricKey)
@@ -324,7 +324,7 @@ func (envelope *envelope) encrypt(w io.Writer, r io.Reader, name []byte) os.Erro
 	return nil
 }
 
-func decryptBody(w io.Writer, r io.Reader, symmetricKey []byte) os.Error {
+func decryptBody(w io.Writer, r io.Reader, symmetricKey []byte) error {
 	stream, hmacHash, err := newCipherStream(symmetricKey)
 	if err != nil {
 		return err
@@ -342,7 +342,7 @@ func decryptBody(w io.Writer, r io.Reader, symmetricKey []byte) os.Error {
 	return nil
 }
 
-func decrypt(w io.Writer, r io.Reader, priv *rsa.PrivateKey, keychain keychainFunc) os.Error {
+func decrypt(w io.Writer, r io.Reader, priv *rsa.PrivateKey, keychain keychainFunc) error {
 	header, err := readLengthEncoded(r)
 	if err != nil {
 		return err
@@ -361,7 +361,7 @@ func decrypt(w io.Writer, r io.Reader, priv *rsa.PrivateKey, keychain keychainFu
 	return decryptBody(w, r, symmetricKey)
 }
 
-func EncryptFile(recipientEmail []byte, path string) os.Error {
+func EncryptFile(recipientEmail []byte, path string) error {
 	_, name := filepath.Split(path)
 
 	outPath := path + ".kindi"
@@ -391,7 +391,7 @@ func EncryptFile(recipientEmail []byte, path string) os.Error {
 	return envelope.encrypt(w, r, []byte(name))
 }
 
-func DecryptFile(path string) (string, string, os.Error) {
+func DecryptFile(path string) (string, string, error) {
 	dir, _ := filepath.Split(path)
 
 	r, err := os.Open(path)
