@@ -26,7 +26,6 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-
 package kindi
 
 import (
@@ -38,6 +37,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
 	"hash"
@@ -79,7 +79,7 @@ func newCipherStream(symmetricKey []byte) (cipher.Stream, hash.Hash, error) {
 	hashSeed := make([]byte, 64)
 	c.Encrypt(hashSeed, hashSeed)
 
-	return stream, hmac.NewSHA256(hashSeed), nil
+	return stream, hmac.New(sha256.New, hashSeed), nil
 }
 
 func writeLengthEncoded(w io.Writer, data []byte) error {
@@ -131,7 +131,7 @@ func (envelope *envelope) newHeader(symmetricKey []byte, name []byte) (header []
 
 	hash = sha1.New()
 	hash.Write(envelope.senderEmail)
-	sum := hash.Sum()
+	sum := hash.Sum(nil)
 	sig, err := rsa.SignPKCS1v15(rand.Reader, envelope.senderKey, crypto.SHA1, sum)
 	if err != nil {
 		return nil, nil, err
@@ -155,7 +155,7 @@ func (envelope *envelope) newHeader(symmetricKey []byte, name []byte) (header []
 	encryptWriter := &cipher.StreamWriter{S: stream, W: io.MultiWriter(result, hmacHash)}
 	io.Copy(encryptWriter, buf)
 
-	return result.Bytes(), hmacHash.Sum(), nil
+	return result.Bytes(), hmacHash.Sum(nil), nil
 }
 
 type hashReader struct {
@@ -250,7 +250,7 @@ func decryptHeader(header []byte, headerHash []byte, priv *rsa.PrivateKey, keych
 
 	io.Copy(tempBuf, decryptReader)
 
-	if !bytes.Equal(headerHash, hmacHash.Sum()) {
+	if !bytes.Equal(headerHash, hmacHash.Sum(nil)) {
 		return nil, nil, nil, fmt.Errorf("expected hmac hash and calculated hmac hash not equal")
 	}
 
@@ -280,7 +280,7 @@ func decryptHeader(header []byte, headerHash []byte, priv *rsa.PrivateKey, keych
 
 	hash = sha1.New()
 	hash.Write(senderEmail)
-	sum := hash.Sum()
+	sum := hash.Sum(nil)
 	err = rsa.VerifyPKCS1v15(sender, crypto.SHA1, sum, sig)
 	if err != nil {
 		return nil, nil, nil, err
@@ -319,7 +319,7 @@ func (envelope *envelope) encrypt(w io.Writer, r io.Reader, name []byte) error {
 
 	encryptWriter := &cipher.StreamWriter{S: stream, W: io.MultiWriter(w, hmacHash)}
 	io.Copy(encryptWriter, r)
-	w.Write(hmacHash.Sum())
+	w.Write(hmacHash.Sum(nil))
 
 	return nil
 }
@@ -335,7 +335,7 @@ func decryptBody(w io.Writer, r io.Reader, symmetricKey []byte) error {
 	decryptReader := &cipher.StreamReader{S: stream, R: &hashReader{r: abtr, h: hmacHash}}
 	io.Copy(w, decryptReader)
 
-	if !bytes.Equal(abtr.tmp[abtr.r:abtr.w], hmacHash.Sum()) {
+	if !bytes.Equal(abtr.tmp[abtr.r:abtr.w], hmacHash.Sum(nil)) {
 		return fmt.Errorf("expected hmac hash and calculated hmac hash not equal")
 	}
 
