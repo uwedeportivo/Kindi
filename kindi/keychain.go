@@ -26,7 +26,6 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-
 package kindi
 
 import (
@@ -36,6 +35,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"image"
 	"io"
@@ -45,6 +45,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -62,16 +63,17 @@ func mkKindiDir(path string) (string, error) {
 
 	if len(path) == 0 {
 		uid := syscall.Getuid()
-		u, err := user.LookupId(uid)
+		uid_str := strconv.Itoa(uid)
+		u, err := user.LookupId(uid_str)
 		if err != nil {
 			return "", err
 		}
-		if e, g := uid, u.Uid; e != g {
+		if e, g := uid_str, u.Uid; e != g {
 			return "", fmt.Errorf("expected Uid of %d; got %d", e, g)
 		}
 		fi, err := os.Stat(u.HomeDir)
-		if err != nil || !fi.IsDirectory() {
-			return "", fmt.Errorf("expected a valid HomeDir; stat(%q): err=%v, IsDirectory=%v", err, fi.IsDirectory())
+		if err != nil || !fi.IsDir() {
+			return "", fmt.Errorf("expected a valid HomeDir; stat(%q): err=%v, IsDirectory=%v", err, fi.IsDir())
 		}
 
 		name = filepath.Join(u.HomeDir, ".kindi")
@@ -81,7 +83,7 @@ func mkKindiDir(path string) (string, error) {
 
 	err := os.Mkdir(name, 0700)
 	if err != nil {
-		if pe, ok := err.(*os.PathError); ok && pe.Err == os.EEXIST {
+		if pe, ok := err.(*os.PathError); ok && pe.Err == syscall.EEXIST {
 			return name, nil
 		}
 		return "", err
@@ -118,7 +120,7 @@ func InitKeychain(configDir string) error {
 	userPath := filepath.Join(kindiDirName, "me")
 	_, err = os.Stat(userPath)
 	if err != nil {
-		if pe, ok := err.(*os.PathError); ok && pe.Err == os.ENOENT {
+		if pe, ok := err.(*os.PathError); ok && pe.Err == syscall.ENOENT {
 			fmt.Printf("Please enter your gmail address (full address with @gmail.com or your @ Google Apps domain): ")
 			gmail := ""
 			fmt.Scanln(&gmail)
@@ -152,7 +154,7 @@ func InitKeychain(configDir string) error {
 
 	_, err = os.Stat(meKeyPath)
 	if err != nil {
-		if pe, ok := err.(*os.PathError); ok && pe.Err == os.ENOENT {
+		if pe, ok := err.(*os.PathError); ok && pe.Err == syscall.ENOENT {
 			fmt.Printf("Please enter path to an image (jpeg or png) you would like to use as your certificate holder\n")
 			fmt.Printf("(any image will do, but an image of you would be nice)\n")
 			fmt.Printf("image path (just press enter for a default image):")
@@ -208,7 +210,7 @@ func fetchImageOfMe(imageOfMePath string) (image.Image, error) {
 	var err error
 
 	if len(imageOfMePath) == 0 {
-		httpResponse, err := http.DefaultClient.Get("http://www.codemanic.com/kindi/default.png")
+		httpResponse, err := http.DefaultClient.Get("https://www.google.com/images/srpr/logo3w.png")
 		if err != nil {
 			return nil, err
 		}
@@ -235,7 +237,7 @@ func Generate(certoutPath, pngoutPath, keyoutPath, imageOfMePath string) error {
 		return err
 	}
 
-	now := time.Seconds()
+	now := time.Now()
 
 	template := x509.Certificate{
 		SerialNumber: big.NewInt(0),
@@ -243,8 +245,8 @@ func Generate(certoutPath, pngoutPath, keyoutPath, imageOfMePath string) error {
 			CommonName:   "kindi",
 			Organization: []string{"codemanic.com"},
 		},
-		NotBefore: time.SecondsToUTC(now - 300),
-		NotAfter:  time.SecondsToUTC(now + 60*60*24*365), // valid for 1 year.
+		NotBefore: now.Add(-300).UTC(),
+		NotAfter:  now.AddDate(1, 0, 0).UTC(), // valid for 1 year.
 
 		SubjectKeyId: []byte{1, 2, 3, 4},
 		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
@@ -303,7 +305,9 @@ func parseCertificate(certBytes []byte) (*rsa.PublicKey, error) {
 	}
 
 	if cert.PublicKeyAlgorithm != x509.RSA {
-		return nil, x509.UnsupportedAlgorithmError{}
+		// return nil, x509.UnsupportedAlgorithmError{}
+		// I'm not sure what the "right" fix for this one is.
+		return nil, errors.New("UnsupportedAlgorithmError")
 	}
 
 	rsaPub, _ := cert.PublicKey.(*rsa.PublicKey)

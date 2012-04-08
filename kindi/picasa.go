@@ -26,7 +26,6 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-
 package kindi
 
 import (
@@ -40,7 +39,7 @@ import (
 	"strings"
 	"time"
 
-	"goauth2.googlecode.com/hg/oauth"
+	"code.google.com/p/goauth2/oauth"
 )
 
 func jsonPath(object interface{}, path string) interface{} {
@@ -102,7 +101,7 @@ func fetchKindiAlbumId(user string) (string, error) {
 	for i := range albums {
 		albumTitle := jsonPath(albums[i], "title/$t").(string)
 		if albumTitle == kindiAlbumName {
-			ts, err := strconv.Atoui64(jsonPath(albums[i], "gphoto$timestamp/$t").(string))
+			ts, err := strconv.ParseUint(jsonPath(albums[i], "gphoto$timestamp/$t").(string), 10, 64)
 			if err != nil {
 				continue
 			}
@@ -268,7 +267,8 @@ func uploadCertPNG(path string) error {
 }
 
 func createKindiAlbum(httpClient *http.Client) (string, error) {
-	albumCreateReader := bytes.NewBuffer([]byte(fmt.Sprintf(albumCreateBodyTemplate, time.Seconds()*1000)))
+	timestamp := time.Now().Unix() * 1000
+	albumCreateReader := bytes.NewBuffer([]byte(fmt.Sprintf(albumCreateBodyTemplate, timestamp)))
 	url := "https://picasaweb.google.com/data/feed/api/user/" + myGmail + "?alt=json"
 	httpResponse, err := httpClient.Post(url, "application/atom+xml", albumCreateReader)
 	if err != nil {
