@@ -29,9 +29,9 @@
 package main
 
 import (
+	"./kindi"
 	"flag"
 	"fmt"
-	"kindi"
 	"log"
 	"os"
 )
