@@ -1,6 +1,11 @@
 Kindi Encryption
 ================
 
+Kindi2
+------
+
+I rewrote this application simplifying it. The new repository is at http://github.com/uwedeportivo/kindi2.
+
 What ?
 ------
 
